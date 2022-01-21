@@ -1,0 +1,22 @@
+#!/bin/bash
+task=evaluation
+read_model_path=exp/task_gtol_mixed__model_rgatsql__dataset_spider/view_global__plm_electra-large-discriminator__gs_4__nb_1__om_random__cm_sum__sf__bs_20__lr_0.0001_ld_0.8__l2_0.1__me_200__mn_5.0__bm_5__seed_1024__os_1024
+# gtol all
+#exp/task_gtol__model_rgatsql__dataset_spider/view_global__emb_300__gnn_256_x_8__share__head_8__share__gs_5__nb_1__om_all__cm_sum__bs_20__lr_0.0005__l2_0.0001__ls_0.15__wp_0.1__sd_linear__me_100__mn_5.0__bm_5__seed_${1}__os_1024
+
+# random
+#exp/task_random__model_rgatsql__dataset_spider/view_global__emb_300__gnn_256_x_8__share__head_8__share__gs_5__nb_5__om_controller__cm_sum__bs_20__lr_0.0005__l2_0.0001__ls_0.15__wp_0.1__sd_linear__me_100__mn_5.0__bm_5__seed_${1}__os_1024/
+
+#exp/task_gtol_controller_ddp__model_rgatsql__dataset_spider/view_global__plm_electra-large-discriminator__gs_4__nb_1__om_controller__cm_sum__sf__bs_20__lr_0.0001_ld_0.8__l2_0.1__me_200__mn_5.0__bm_5__seed_999__os_1024
+#exp/task_gtol_controller_ddp__model_rgatsql__dataset_spider/view_global__plm_electra-large-discriminator__gs_4__nb_1__om_controller__cm_sum__bs_20__lr_0.0001_ld_0.8__l2_0.1__me_200__mn_5.0__bm_5__seed_999__os_1024
+
+# fixed
+#exp/task_fixed__model_rgatsql__dataset_spider/view_global__emb_300__gnn_256_x_8__share__head_8__share__gs_5__nb_5__om_controller__cm_sum__bs_20__lr_0.0005__l2_0.0001__ls_0.15__wp_0.1__sd_linear__me_100__mn_5.0__bm_5__seed_999__os_$1/
+#read_order_path='--read_model_path exp/task_random__model_rgatsql__dataset_spider/view_global__emb_300__gnn_256_x_8__share__head_8__share__gs_5__nb_5__om_controller__cm_sum__bs_20__lr_0.0005__l2_0.0001__ls_0.15__wp_0.1__sd_linear__me_100__mn_5.0__bm_5__seed_111__os_1024'
+order_method='all'
+batch_size=50
+beam_size=5
+device=0
+
+python -u scripts/spider/eval_model.py --task $task --dataset 'spider' --db_dir 'data/spider/database' --read_model_path $read_model_path \
+    --order_method $order_method --batch_size $batch_size --beam_size $beam_size --device $device

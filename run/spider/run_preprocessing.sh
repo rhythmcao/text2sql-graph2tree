@@ -1,5 +1,5 @@
 #!/bin/bash
-encode_method=rgatsql # irnet, rgatsql, lgesql
+encode_method=lgesql # irnet, rgatsql, lgesql
 mwf=4
 vocab_glove='pretrained_models/glove.42b.300d/vocab_glove.txt'
 vocab='pretrained_models/glove.42b.300d/vocab.txt'

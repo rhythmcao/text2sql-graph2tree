@@ -1,4 +1,5 @@
 embeddings==0.0.8
+dgl-cu111==0.7.2
 transformers==4.11.2
 python-Levenshtein==0.12.2
 stanza==1.2

@@ -1,17 +1,9 @@
 #coding=utf8
-import math, dgl, torch
 import numpy as np
+import math, dgl, torch
 from utils.graphs import GraphExample
-from utils.constants import MAX_RELATIVE_DIST
+from utils.constants import NONLOCAL_RELATIONS
 
-
-# mapping special column * as an ordinary column
-nonlocal_relations = [
-    'question-question-generic', 'table-table-generic', 'column-column-generic', 'table-column-generic', 'column-table-generic',
-    'table-table-fk', 'table-table-fkr', 'table-table-fkb', 'column-column-sametable',
-    'question-question-identity', 'table-table-identity', 'column-column-identity'] + [
-    'question-question-dist' + str(i) for i in range(- MAX_RELATIVE_DIST, MAX_RELATIVE_DIST + 1, 1) if i not in [-1, 0, 1]
-]
 
 class GraphProcessor():
 
@@ -25,9 +17,9 @@ class GraphProcessor():
         graph = GraphExample()
         num_nodes = int(math.sqrt(len(relation)))
         local_edges = [(idx // num_nodes, idx % num_nodes, r)
-            for idx, r in enumerate(relation) if r not in nonlocal_relations]
+            for idx, r in enumerate(relation) if r not in NONLOCAL_RELATIONS]
         nonlocal_edges = [(idx // num_nodes, idx % num_nodes,  r)
-            for idx, r in enumerate(relation) if r in nonlocal_relations]
+            for idx, r in enumerate(relation) if r in NONLOCAL_RELATIONS]
         global_edges = local_edges + nonlocal_edges
         src_ids, dst_ids = list(map(lambda r: r[0], global_edges)), list(map(lambda r: r[1], global_edges))
         graph.global_g = dgl.graph((src_ids, dst_ids), num_nodes=num_nodes, idtype=torch.int32)
@@ -41,9 +33,9 @@ class GraphProcessor():
         graph = GraphExample()
         num_nodes = int(math.sqrt(len(relation)))
         local_edges = [(idx // num_nodes, idx % num_nodes, r)
-            for idx, r in enumerate(relation) if r not in nonlocal_relations]
+            for idx, r in enumerate(relation) if r not in NONLOCAL_RELATIONS]
         nonlocal_edges = [(idx // num_nodes, idx % num_nodes,  r)
-            for idx, r in enumerate(relation) if r in nonlocal_relations]
+            for idx, r in enumerate(relation) if r in NONLOCAL_RELATIONS]
         global_edges = local_edges + nonlocal_edges
         src_ids, dst_ids = list(map(lambda r: r[0], global_edges)), list(map(lambda r: r[1], global_edges))
         graph.global_g = dgl.graph((src_ids, dst_ids), num_nodes=num_nodes, idtype=torch.int32)

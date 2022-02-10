@@ -81,6 +81,7 @@ class GraphFactory():
         bg.schema_mask = torch.cat([ex.schema_mask for ex in graph_list], dim=0).to(device)
 
         if train:
+            smoothing = kwargs.pop('smoothing', 0.0)
             if hasattr(graph_list[0], 'question_label'): # labels for value recognition
                 bg.value_lens = torch.cat([ex.value_len for ex in graph_list], dim=0).to(device)
                 bg.value_nums = torch.tensor([ex.value_num for ex in graph_list], dtype=torch.long).to(device)
@@ -93,7 +94,6 @@ class GraphFactory():
                     bias += question_lens[idx]
                 bg.select_index = torch.tensor(select_index, dtype=torch.long).to(device)
                 question_label = torch.cat([ex.question_label for ex in graph_list], dim=0)
-                smoothing = kwargs.pop('smoothing', 0.0)
                 question_prob = torch.full((question_label.size(0), 3), smoothing / 2)
                 question_prob = question_prob.scatter_(1, question_label.unsqueeze(1), 1 - smoothing)
                 bg.question_prob = question_prob.to(device)

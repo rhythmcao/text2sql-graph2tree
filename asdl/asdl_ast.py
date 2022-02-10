@@ -1,10 +1,10 @@
 #coding=utf-8
 from io import StringIO
-import copy
 from asdl.asdl import *
 from collections import defaultdict
 
 class AbstractSyntaxTree(object):
+
     def __init__(self, production, realized_fields=None, created_time=0, parent=None, score=0.):
         self.production = production
 
@@ -16,46 +16,49 @@ class AbstractSyntaxTree(object):
 
         # used in decoding, record the time step when this node was created
         self.created_time = created_time
+        # record the generation order of different Field~(typed set)
+        self.field_order = [] # canonical order if in golden tree
+        # record the index of each RealizedField during generation compared to golden tree~(untyped set)
         self.field_tracker = {
             field: [] for field in self.production.fields
-        } # record the index of generated RealizedField compared to golden tree
+        } # canonical order if in golden tree
         self.score = score
 
         if realized_fields:
             for field in realized_fields:
-                self.add_child(field)
+                self._add_child(field)
             self.sanity_check()
         else:
             for field in self.production.fields:
                 for _ in range(self.production.fields[field]):
-                    self.add_child(RealizedField(field))
+                    self._add_child(RealizedField(field))
 
-    def add_child(self, realized_field):
+
+    def _add_child(self, realized_field):
         self.fields[realized_field.field].append(realized_field)
         realized_field.parent_node = self
 
+
     def __getitem__(self, field):
-        if field not in self.fields:
-            raise KeyError
         return self.fields[field]
+
 
     def sanity_check(self):
         assert len(self.production.fields) == len(self.fields), 'Number of different fields must match'
-        for field_key in self.production.fields:
-            cnt = self.production.fields[field_key]
-            if field_key not in self.fields:
-                raise KeyError
-            assert len(self.fields[field_key]) == cnt
-            for child in self.fields[field_key]:
-                assert field_key == child.field
+        for field in self.production.fields:
+            cnt = self.production.fields[field]
+            assert len(self.fields[field]) == cnt
+            for child in self.fields[field]:
+                assert field == child.field
                 if isinstance(child.value, AbstractSyntaxTree):
                     child.value.sanity_check()
 
+
     def copy(self):
         new_tree = AbstractSyntaxTree(self.production, created_time=self.created_time, score=self.score)
-        for field_key in self.fields:
-            new_field_list = new_tree.fields[field_key]
-            for idx, old_field in enumerate(self.fields[field_key]):
+        for field in self.fields:
+            new_field_list = new_tree.fields[field]
+            for idx, old_field in enumerate(self.fields[field]):
                 new_field = new_field_list[idx]
                 if isinstance(old_field.type, ASDLCompositeType):
                     if old_field.value is not None:
@@ -63,8 +66,10 @@ class AbstractSyntaxTree(object):
                 else:
                     if old_field.value is not None:
                         new_field.add_value(old_field.value, old_field.realized_time, old_field.score)
-        new_tree.field_tracker = copy.deepcopy(self.field_tracker)
+        new_tree.field_order = list(self.field_order)
+        new_tree.field_tracker = { k: list(v) for k, v in self.field_tracker.items() }
         return new_tree
+
 
     def to_string(self, sb=None):
         is_root = False
@@ -75,18 +80,18 @@ class AbstractSyntaxTree(object):
         sb.write('[')
         sb.write(self.production.constructor.name)
 
-        for field_name in self.fields:
-            for field in self.fields[field_name]:
+        for field in self.fields:
+            for realized_field in self.fields[field]:
                 sb.write(' ')
                 sb.write('(')
-                sb.write(field.type.name)
+                sb.write(realized_field.type.name)
                 sb.write('-')
-                sb.write(field.name)
+                sb.write(realized_field.name)
 
-                if field.value is not None:
-                    value = field.value
+                if realized_field.value is not None:
+                    value = realized_field.value
                     sb.write(' ')
-                    if isinstance(field.type, ASDLCompositeType):
+                    if isinstance(realized_field.type, ASDLCompositeType):
                         value.to_string(sb)
                     else:
                         sb.write(str(value))
@@ -99,65 +104,56 @@ class AbstractSyntaxTree(object):
         if is_root:
             return sb.getvalue()
 
+
     def __hash__(self):
         code = hash(self.production)
-        for field_name in self.fields:
-            for field in self.fields[field_name]:
-                code = code + 37 * hash(field)
+        for field in self.fields:
+            for realized_field in self.fields[field]:
+                code = code + 37 * hash(realized_field)
         return code
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-
-        if self.production != other.production:
-            return False
-
-        # TODO: FIX set comparison
-        for field_name in self.fields:
-            if set(self.fields[field_name]) != set(other.fields[field_name]): return False
-
-        return True
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
 
     def __repr__(self):
         return repr(self.production)
 
+
     @property
     def size(self):
         node_num = 1
-        for field_name in self.fields:
-            for field in self.fields[field_name]:
-                value = field.value
+        for field in self.fields:
+            for realized_field in self.fields[field]:
+                value = realized_field.value
                 if isinstance(value, AbstractSyntaxTree):
                     node_num += value.size
                 else: node_num += 1
         return node_num
 
+
     @property
     def finished(self):
-        for field_name in self.fields:
-            for field in self.fields[field_name]:
-                if not field.finished:
+        for field in self.fields:
+            for realized_field in self.fields[field]:
+                if not realized_field.finished:
                     return False
         return True
-    
+
+
     @property
     def decode_finished(self):
-        for field_name in self.field_tracker:
-            if len(self.field_tracker[field_name]) != self.production.fields[field_name]:
+        for field in self.field_tracker:
+            if len(self.field_tracker[field]) != self.production.fields[field]:
                 return False
         return True
 
 
 class RealizedField(Field):
-    """ Wrapper of field realized with values """
+
+    """ Wrapper of Field object with values realized """
+
     def __init__(self, field, value=None, realized_time=0, parent=None):
         super(RealizedField, self).__init__(field.name, field.type)
 
-        # FIXME: hack, return the field as a property
+        # return the field as a property
         self.field = field
 
         # record its parent AST node
@@ -180,9 +176,11 @@ class RealizedField(Field):
         self.realized_time = realized_time
         self.score = score
 
+
     def __hash__(self):
         code = hash(self.field) ^ hash(self.value)
         return code
+
 
     @property
     def finished(self):
@@ -190,9 +188,3 @@ class RealizedField(Field):
         if isinstance(self.value, AbstractSyntaxTree):
             return self.value.finished
         else: return True
-
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__): return False
-        return super(RealizedField, self).__eq__(other) and \
-            self.value == other.value

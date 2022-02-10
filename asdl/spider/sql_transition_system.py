@@ -8,8 +8,12 @@ from utils.constants import DATASETS
 class SQLTransitionSystem(TransitionSystem):
     def __init__(self, grammar, table_path=None, db_dir=None):
         super(SQLTransitionSystem, self).__init__(grammar)
-        from asdl.spider.parser import Parser
-        from asdl.spider.unparser import UnParser
+        if grammar.grammar_version == '1':
+            from asdl.spider.parser_v1 import Parser
+            from asdl.spider.unparser_v1 import UnParser
+        else:
+            from asdl.spider.parser_v2 import Parser
+            from asdl.spider.unparser_v2 import UnParser
         self.parser = Parser(self.grammar)
         if table_path is None:
             table_path = os.path.join(DATASETS['spider']['data'], 'tables.bin')

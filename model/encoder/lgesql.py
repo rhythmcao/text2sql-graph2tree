@@ -1,11 +1,12 @@
 #coding=utf8
-import copy, math
-import torch, dgl
+import math
+import torch
 import torch.nn as nn
 import dgl.function as fn
 from model.model_utils import Registrable, FFN
 from model.encoder.rgatsql import RGATLayer, MultiViewRGATLayer
 from model.encoder.functions import *
+
 
 @Registrable.register('lgesql')
 class LGESQL(nn.Module):
@@ -40,6 +41,7 @@ class LGESQL(nn.Module):
                 global_lgx = global_lgx.masked_scatter_(mask.unsqueeze(-1), local_lgx)
         return x
 
+
 class DualRGATLayer(nn.Module):
 
     def __init__(self, ndim, edim, num_heads=8, feat_drop=0.2, graph_view='mmc'):
@@ -61,6 +63,7 @@ class DualRGATLayer(nn.Module):
         dst_x = torch.index_select(x, dim=0, index=dst_ids)
         out_local_lgx, _ = self.edge_update(local_lgx, src_x, dst_x, lg)
         return out_x, out_local_lgx
+
 
 class EdgeRGATLayer(nn.Module):
 
@@ -92,7 +95,7 @@ class EdgeRGATLayer(nn.Module):
         g.apply_edges(src_dot_dst('k', 'q', 'score'))
         g.apply_edges(scaled_exp('score', math.sqrt(self.d_k)))
         # Update node state
-        g.update_all(fn.src_mul_edge('v', 'score', 'v'), fn.sum('v', 'wv'))
+        g.update_all(fn.u_mul_e('v', 'score', 'v'), fn.sum('v', 'wv'))
         g.update_all(fn.copy_edge('score', 'score'), fn.sum('score', 'z'), div_by_z('wv', 'z', 'o'))
         out_x = g.ndata['o']
         return out_x

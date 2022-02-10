@@ -2,7 +2,7 @@
 import re
 from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
-from asdl.spider.parser import UNIT_OP_NAME
+from asdl.spider.parser_v1 import UNIT_OP_NAME
 from preprocess.spider.value_utils import ValueProcessor, UNIT_OP
 from preprocess.process_utils import State
 from functools import wraps
@@ -23,7 +23,7 @@ def ignore_error(func):
 
 class UnParser():
 
-    def __init__(self, grammar: ASDLGrammar, table_path: str = 'data/spider/tables.bin', db_dir: str = 'data/spider/database'):
+    def __init__(self, grammar: ASDLGrammar, table_path: str, db_dir: str):
         """ ASDLGrammar """
         super(UnParser, self).__init__()
         self.grammar = grammar
@@ -106,7 +106,7 @@ class UnParser():
                 table_name = db['table_names_original'][int(tab_field.value)]
                 table_names.append(table_name)
             if len(table_names) > 1:
-                cond_field = from_ast[self.grammar.get_field_by_text('from_condition from')][0]
+                cond_field = from_ast[self.grammar.get_field_by_text('tab_join tab_join')][0]
                 from_cond_str = ' ON ' + self.unparse_from_condition(cond_field.value, db, *args, **kargs)
             return ' JOIN '.join(table_names) + from_cond_str
         else:
@@ -126,7 +126,7 @@ class UnParser():
 
     def unparse_groupby(self, groupby_ast: AbstractSyntaxTree, db: dict, value_candidates: list, *args, **kargs):
         groupby_str, having_str = [], ''
-        groupby_fields = groupby_ast[self.grammar.get_field_by_text('col_id groupby_col_id')]
+        groupby_fields = groupby_ast[self.grammar.get_field_by_text('col_id col_id')]
         for col_field in groupby_fields:
             col_id = col_field.value
             col_name = self.retrieve_column_name(col_id, db)

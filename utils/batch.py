@@ -6,15 +6,15 @@ from utils.example import Example, get_position_ids
 from model.model_utils import lens2mask, cached_property
 from asdl.action_info import get_action_infos
 
-def from_example_list_base(ex_list, device='cpu', train=True):
+def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
     """
         question_lens: torch.long, bsize
-        questions: torch.long, bsize x max_question_len, include [CLS] if add_cls
+        questions: torch.long, bsize x max_question_len
         table_lens: torch.long, bsize, number of tables for each example
-        table_word_lens: torch.long, number of words for each table name
+        table_word_lens: torch.long, number of words of each table name
         tables: torch.long, sum_of_tables x max_table_word_len
         column_lens: torch.long, bsize, number of columns for each example
-        column_word_lens: torch.long, number of words for each column name
+        column_word_lens: torch.long, number of words of each column name
         columns: torch.long, sum_of_columns x max_column_word_len
     """
     batch = Batch(ex_list, device)
@@ -99,42 +99,13 @@ def from_example_list_base(ex_list, device='cpu', train=True):
             if oov_flag.any().item():
                 batch.column_unk_mask = column_unk_mask.masked_scatter_(torch.clone(column_unk_mask), oov_flag).to(device)
                 batch.column_unk_embeddings = torch.tensor([e for e in unk_word_embeddings if e is not None], dtype=torch.float, device=device)
-    return batch
-
-def from_example_list_fixed(ex_list, device='cpu', train=True, **kwargs):
-    """ New fields: batch.lens, batch.max_len, batch.relations, batch.relations_mask
-    """
-    batch = from_example_list_base(ex_list, device, train)
+    
     batch.graph = Example.graph_factory.batch_graphs(ex_list, device, train=train, **kwargs)
-    if train:
-        batch.tgt_actions = [e.tgt_action for e in ex_list]
-        batch.max_action_num = max([len(ex.tgt_action) for ex in ex_list])
+    batch.predict_value = Example.predict_value
+    if not batch.predict_value:
+        batch.graph.value_nums = torch.tensor([0] * len(batch), dtype=torch.long, device=device)
     return batch
 
-
-def from_example_list_random(ex_list, device='cpu', train=True, typed_random=True, untyped_random=True, **kwargs):
-    batch = from_example_list_base(ex_list, device, train)
-    batch.graph = Example.graph_factory.batch_graphs(ex_list, device, train=train, **kwargs)
-    if train:
-        batch.tgt_actions = [get_action_infos(Example.trans.get_field_action_pairs(ex.ast, typed_random, untyped_random)) for ex in ex_list]
-        batch.max_action_num = max([len(ex.tgt_action) for ex in ex_list])
-    return batch
-
-
-def from_example_list_gtol(ex_list, device='cpu', train=True, **kwargs):
-    batch = from_example_list_base(ex_list, device, train)
-    batch.graph = Example.graph_factory.batch_graphs(ex_list, device, train=train, **kwargs)
-    if train:
-        batch.ids = [ex.id for ex in ex_list]
-        batch.max_action_num = max([len(ex.tgt_action) for ex in ex_list])
-    return batch
-
-def from_example_list_rl(ex_list, device='cpu', train=True, **kwargs):
-    batch = from_example_list_base(ex_list, device, train)
-    batch.graph = Example.graph_factory.batch_graphs(ex_list, device, train=train, **kwargs)
-    if train:
-        batch.asts = [ex.ast for ex in ex_list]
-    return batch
 
 class Batch():
 
@@ -144,14 +115,19 @@ class Batch():
         self.device = device
 
     @classmethod
-    def from_example_list(cls, ex_list, device='cpu', train=True, method='fixed', **kwargs):
-        method_dict = {
-            "fixed": from_example_list_fixed,
-            "random": from_example_list_random,
-            "gtol": from_example_list_gtol,
-            "rl": from_example_list_rl
-        }
-        return method_dict[method](ex_list, device, train=train, **kwargs)
+    def from_example_list(cls, ex_list, device='cpu', train=True, ts_order='random', uts_order='enum', **kwargs):
+        batch = from_example_list_encoder(ex_list, device, train, **kwargs)
+        batch.ids = [ex.id for ex in ex_list] # example ids
+        if train:
+            if ts_order == 'controller' and uts_order == 'controller':
+                batch.tgt_actions = [ex.canonical_action for ex in ex_list]
+            elif ts_order == 'enum' or uts_order == 'enum': pass # need GTL incremental training
+            else: # obtain the canonical action sequence in advance to accelerate training
+                batch.tgt_actions = [get_action_infos(
+                        Example.trans.get_field_action_pairs(ex.ast, (ts_order=='random'), (uts_order=='random')))
+                    for ex in ex_list]
+            batch.max_action_num = max([len(ex.canonical_action) for ex in ex_list])
+        return batch
 
     def __len__(self):
         return len(self.examples)

@@ -1,10 +1,9 @@
 #coding=utf8
 import os, pickle, random
 import numpy as np
-from itertools import chain
 from asdl.asdl import ASDLGrammar
-from asdl.transition_system import TransitionSystem
 from asdl.action_info import get_action_infos
+from asdl.transition_system import TransitionSystem
 from eval.evaluator import Evaluator
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
@@ -12,11 +11,10 @@ from utils.vocab import Vocab
 from utils.graphs import GraphFactory
 from utils.word2vec import Word2vecUtils
 from utils.constants import DATASETS, UNK, DEBUG, TEST
+from itertools import chain
 
 
 class SQLDataset(Dataset):
-
-    collate_fn = lambda x: list(x)
 
     def __init__(self, examples) -> None:
         super(SQLDataset, self).__init__()
@@ -33,12 +31,14 @@ class SQLDataset(Dataset):
 
 class Example():
 
-    @classmethod
-    def configuration(cls, dataset, plm=None, method='lgesql',
-            table_path=None, tables=None, db_dir=None, order_path=None):
-        cls.dataset = dataset
-        cls.plm, cls.method = plm, method
+    collate_fn = lambda x: list(x)
 
+    @classmethod
+    def configuration(cls, dataset, plm=None, encode_method='lgesql',
+            table_path=None, tables=None, db_dir=None, ts_order_path=None):
+        cls.dataset = dataset
+        cls.plm, cls.encode_method = plm, encode_method
+        cls.predict_value = DATASETS[cls.dataset]['value']
         cls.db_dir = db_dir if db_dir is not None else DATASETS[cls.dataset]['database']
         cls.data_dir = DATASETS[cls.dataset]['data']
         table_path = table_path if table_path is not None else os.path.join(cls.data_dir, 'tables.json')
@@ -46,17 +46,13 @@ class Example():
 
         cls.grammar = ASDLGrammar.from_filepath(DATASETS[cls.dataset]['grammar'])
         cls.trans = TransitionSystem.get_class_by_dataset(cls.dataset)(cls.grammar, cls.tables, cls.db_dir)
+        cls.order_controller = cls.trans.order_controller
         cls.evaluator = Evaluator.get_class_by_dataset(cls.dataset)(cls.trans, table_path, cls.db_dir) if not TEST else None
 
-        cls.order_path = None
-        if order_path is not None:
-            order_path = os.path.join(order_path, 'order.bin')
-            if os.path.exists(order_path):
-                cls.order_path = order_path
-                order = pickle.load(open(order_path, 'rb'))
-                best_order = cls.grammar.order_controller.compute_best_order(order)
-                cls.grammar.order_controller.set_order(best_order)
-                print('Load pre-defined canonical order from:', cls.order_path)
+        if ts_order_path is not None and os.path.exists(ts_order_path):
+            cls.order_controller.load_and_set_ts_order(ts_order_path)
+        else:
+            cls.order_controller.shuffle_ts_order()
 
         if plm is None: # do not use PLM, currently only for English text-to-SQL
             cls.word2vec = Word2vecUtils()
@@ -68,38 +64,39 @@ class Example():
             cls.tokenizer = AutoTokenizer.from_pretrained(os.path.join('./pretrained_models', plm))
             cls.word_vocab = cls.tokenizer.get_vocab()
         cls.relation_vocab = Vocab(padding=False, unk=False, boundary=False, iterable=DATASETS[cls.dataset]['relation'], default=None)
-        cls.graph_factory = GraphFactory(cls.method, cls.relation_vocab)
+        cls.graph_factory = GraphFactory(cls.encode_method, cls.relation_vocab)
 
 
     @classmethod
-    def load_dataset(cls, choice='train', dataset=None, order_seed=999, shuffle=False):
+    def load_dataset(cls, choice='train', dataset=None):
         if dataset is None:
             assert choice in ['train', 'dev', 'test']
-            fp = os.path.join(cls.data_dir, choice + cls.method + '.bin') if not DEBUG else \
-                os.path.join(cls.data_dir, 'train' + cls.method + '.bin')
+            fp = os.path.join(cls.data_dir, choice + cls.encode_method + '.bin') if not DEBUG else \
+                os.path.join(cls.data_dir, 'train' + cls.encode_method + '.bin')
             dataset = pickle.load(open(fp, 'rb'))
+        else: choice = 'test'
+
         examples = []
-        # control the order of fixed training examples
-        state = np.random.get_state()
-        np.random.seed(order_seed)
-        tp_shuffle = shuffle and choice == 'train' and cls.order_path is None
-        if tp_shuffle:
-            cls.grammar.order_controller.shuffle_order()
         for idx, ex in enumerate(dataset):
-            examples.append(cls(ex, cls.tables[ex['db_id']], shuffle, idx))
+            examples.append(cls(ex, cls.tables[ex['db_id']], choice + str(idx)))
             if DEBUG and len(examples) >= 100:
                 break
-        np.random.set_state(state)
 
-        question_lens = [len(ex.input_id) if cls.plm else len(ex.question_id) for ex in examples]
-        print('Max/Min/Avg input length in %s dataset is: %d/%d/%.2f' % (choice, max(question_lens), min(question_lens), np.mean(question_lens)))
-        action_lens = [len(ex.tgt_action) for ex in examples]
-        print('Max/Min/Avg action length in %s dataset is: %d/%d/%.2f' % (choice, max(action_lens), min(action_lens), np.mean(action_lens)))
-        return SQLDataset(examples)
+        dataset = SQLDataset(examples)
+        if choice == 'train':
+            dataset = cls.order_controller.set_canonical_order_per_sample(dataset, ts_control=True, ts_shuffle=False, uts_shuffle=True)
+            for ex in dataset: ex.canonical_action = get_action_infos(Example.trans.get_field_action_pairs(ex.ast, False, False))
+        return dataset
+    
+    @classmethod
+    def use_database_testsuite(cls):
+        if cls.evaluator is not None:
+            cls.evaluator.change_database(DATASETS[cls.dataset]['database_testsuite'])
 
 
-    def __init__(self, ex: dict, db: dict, shuffle: bool = False, fixed=False):
+    def __init__(self, ex: dict, db: dict, id: str = ''):
         super(Example, self).__init__()
+        self.id = id
         self.ex = ex
         self.db = db
 
@@ -173,17 +170,10 @@ class Example():
 
         self.graph = Example.graph_factory.graph_construction(ex, db)
 
-        self.query, self.ast, self.tgt_action = '', None, []
-        self.used_tables, self.used_columns = [], []
-        if 'values' in ex and 'used_tables' in ex:
-            # outputs
+        self.query, self.ast, self.canonical_action = '', None, []
+        if 'query' in ex: # labeled outputs
             self.query = ' '.join(ex['query'].split('\t'))
-            self.ast = Example.trans.surface_code_to_ast(ex['sql'], ex['values'])
-            if fixed:
-                self.tgt_action = get_action_infos(ex['actions'])
-            else:
-                self.tgt_action = get_action_infos(Example.trans.get_field_action_pairs(self.ast, untyped_random=shuffle))
-            self.used_tables, self.used_columns = ex['used_tables'], ex['used_columns']
+            self.ast = ex['ast']
 
 
 def get_position_ids(ex, shuffle=True, add_one=False):

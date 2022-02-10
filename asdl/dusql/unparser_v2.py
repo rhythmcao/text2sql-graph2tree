@@ -2,7 +2,7 @@
 import re
 from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
-from asdl.dusql.parser import UNIT_OP_NAME
+from asdl.dusql.parser_v1 import UNIT_OP_NAME
 from preprocess.dusql.value_utils import ValueProcessor, UNIT_OP
 from preprocess.process_utils import State
 from functools import wraps
@@ -137,8 +137,11 @@ class UnParser():
                     table_name = db['table_names_original'][int(tab_field.value)]
                     table_names.append(table_name)
             if len(table_names) > 1:
-                cond_field = from_ast[self.grammar.get_field_by_text('condition from')][0]
-                from_cond_str = ' ON ' + self.unparse_condition(cond_field.value, db, value_candidates, entry, 'from', *args, **kargs)
+                cond_fields = from_ast[self.grammar.get_field_by_text('join join')]
+                from_cond_str = []
+                for cond_field in cond_fields:
+                    from_cond_str.append(self.unparse_table_join(cond_field.value, db))
+                from_cond_str = ' ON ' + ' AND '.join(from_cond_str)
             return ' JOIN '.join(table_names) + from_cond_str, False
         else:
             left_ast = from_ast[self.grammar.get_field_by_text('sql left_from_sql')][0].value
@@ -146,9 +149,16 @@ class UnParser():
             return '( ' + self.unparse_sql(left_ast, db, value_candidates, entry, *args, **kargs) + ' ) a , ( ' + \
                 self.unparse_sql(right_ast, db, value_candidates, entry, *args, **kargs) + ' ) b', True
 
+    def unparse_table_join(self, join_ast: AbstractSyntaxTree, db: dict):
+        fields = join_ast[self.grammar.get_field_by_text('col_id col_id')]
+        col_id1, col_id2 = int(fields[0].value), int(fields[1].value)
+        col_name1 = self.retrieve_column_name(col_id1, db)
+        col_name2 = self.retrieve_column_name(col_id2, db)
+        return ' = '.join([col_name1, col_name2])
+
     def unparse_groupby(self, groupby_ast: AbstractSyntaxTree, db: dict, value_candidates: list, entry: dict, *args, **kargs):
         having_str = ''
-        groupby_field = groupby_ast[self.grammar.get_field_by_text('col_id groupby_col_id')][0]
+        groupby_field = groupby_ast[self.grammar.get_field_by_text('col_id col_id')][0]
         groupby_str = self.retrieve_column_name(groupby_field.value, db)
         ctr_name = groupby_ast.production.constructor.name
         if 'Having' in ctr_name:

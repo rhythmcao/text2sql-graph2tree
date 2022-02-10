@@ -160,7 +160,7 @@ class Parser():
     def parse_groupby(self, groupby_clause: list, having_clause: list, sql_values: set, track: str):
         ctr_name = 'GroupByColumn' if not having_clause else 'GroupByHavingColumn'
         ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
-        groupby_field = ast_node[self.grammar.get_field_by_text('col_id groupby_col_id')][0]
+        groupby_field = ast_node[self.grammar.get_field_by_text('col_id col_id')][0]
         groupby_field.add_value(int(groupby_clause[0][1]) + 1)
         if having_clause:
             having_field = ast_node[self.grammar.get_field_by_text('condition having')][0]

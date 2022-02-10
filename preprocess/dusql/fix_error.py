@@ -194,7 +194,7 @@ def amend_examples_in_dataset(dataset: dict, choice: str = 'train', verbose: boo
     print('Fix %d examples in the %s dataset' % (count, choice))
     return dataset
 
-def fix_tables(tables_list):
+def amend_tables(tables_list):
     tables = []
     for db in tables_list:
         if db['db_id'] not in tables:
@@ -226,10 +226,10 @@ if __name__ == '__main__':
     table_path = os.path.join(data_dir, 'tables.json')
     origin_table_path = os.path.join(data_dir, 'tables.original.json')
     update_table_path = origin_table_path if os.path.exists(origin_table_path) else table_path
-    tables = fix_tables(json.load(open(update_table_path, 'r')))
+    tables = amend_tables(json.load(open(update_table_path, 'r')))
     if not os.path.exists(origin_table_path):
         shutil.copyfile(table_path, origin_table_path)
-    json.dump(tables, open(table_path, 'w'), indent=4)
+    json.dump(tables, open(table_path, 'w'), indent=4, ensure_ascii=False)
 
     for data_split in ['train', 'dev']:
         dataset_path = os.path.join(data_dir, data_split + '.json')

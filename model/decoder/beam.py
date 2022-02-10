@@ -7,12 +7,12 @@ from asdl.transition_system import ApplyRuleAction, SelectColumnAction, SelectTa
 class Beam():
     """ Maintain a beam of hypothesis during decoding for each example
     """
-    def __init__(self, size: Tuple[int, int, int], trans: TransitionSystem, beam_size: int = 5, order_method: str = 'controller', device: torch.device = None) -> None:
+    def __init__(self, size: Tuple[int, int, int], trans: TransitionSystem, beam_size: int = 5, ts_order: str = 'random', device: torch.device = None, **kwargs) -> None:
         assert beam_size >= 1
-        self.trans, self.grammar = trans, trans.grammar
+        self.trans, self.grammar, self.order_controller = trans, trans.grammar, trans.order_controller
         self.table_num, self.column_num, self.value_num = size
         self.beam_size = beam_size
-        self.order_method = order_method
+        self.ts_order = ts_order
         self.device = device
         # record the current hypothesis and current input fields
         self.hyps = [Hypothesis()]
@@ -33,7 +33,7 @@ class Beam():
         return torch.tensor([hyp.frontier_node.created_time for hyp in self.hyps], dtype=torch.long, device=self.device)
 
     def get_previous_actions(self):
-        return [hyp.actions[-1] for hyp in self.hyps]
+        return [hyp.field_actions[-1][1] for hyp in self.hyps]
 
     def get_previous_hyp_ids(self, offset: int = 0) -> List[int]:
         return [idx + offset for idx in self.live_hyp_ids]
@@ -85,7 +85,7 @@ class Beam():
                 self.completed_hyps.append(new_hyp)
                 continue
             # find next valid fields
-            fields_list = self.trans.get_valid_continuing_fields(new_hyp, method=self.order_method)
+            fields_list = self.order_controller.get_valid_continuing_fields(new_hyp, ts_order=self.ts_order)
             new_fields.extend(fields_list)
             new_hyps.extend([new_hyp] * len(fields_list))
             live_hyp_ids.extend([hyp_id] * len(fields_list))

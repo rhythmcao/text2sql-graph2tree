@@ -85,18 +85,26 @@ class AuxiliaryModule(nn.Module):
         """
         g = batch.graph
         context = self.cross_attention(inputs, batch.graph.mg)
-        question, schema = inputs[g.question_mask], inputs[g.schema_mask]
-        question_context, schema_context = context[g.question_mask], context[g.schema_mask]
-        vr_score = self.question_score_function(question, question_context)
+        
+        if batch.predict_value:
+            question, question_context = inputs[g.question_mask], context[g.question_mask]
+            vr_score = self.question_score_function(question, question_context)
+        schema, schema_context = inputs[g.schema_mask], context[g.schema_mask]
         gp_score = self.schema_score_function(schema, schema_context).squeeze(-1)
-
+        
         if self.training:
-            vr_loss = self.value_recognition_loss(vr_score, g.question_prob)
-            value_memory, _ = self.parse_value_memory(vr_score, question, batch, sample_size)
+            if batch.predict_value:
+                vr_loss = self.value_recognition_loss(vr_score, g.question_prob)
+                value_memory, _ = self.parse_value_memory(vr_score, question, batch, sample_size)
+            else:
+                vr_loss = inputs.new_zeros(1)[0]
+                value_memory = inputs.new_zeros((len(batch), 0, self.hidden_size))
             gp_loss = self.graph_pruning_loss(gp_score, g.schema_prob)
             return value_memory, (vr_loss, gp_loss)
         else:
-            value_memory, value_candidates = self.parse_value_memory(vr_score, question, batch, sample_size)
+            if batch.predict_value:
+                value_memory, value_candidates = self.parse_value_memory(vr_score, question, batch, sample_size)
+            else: value_memory, value_candidates = inputs.new_zeros((len(batch), 0, self.hidden_size)), [[] for _ in range(len(batch))]
             schema_gates = torch.sigmoid(gp_score) >= 0.5
             return value_memory, (value_candidates, schema_gates)
 

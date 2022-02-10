@@ -3,14 +3,13 @@ from asdl.asdl import ASDLConstructor, ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
 from functools import wraps
 from utils.constants import DEBUG
-from itertools import chain, repeat
 from preprocess.process_utils import SQLValue, State
-from preprocess.spider.value_utils import AGG_OP, CMP_OP, UNIT_OP
+from preprocess.dusql.value_utils import AGG_OP, CMP_OP, UNIT_OP
 
 UNIT_OP_NAME = ('', 'Minus', 'Plus', 'Times', 'Divide')
 CMP_OP_NAME = {
-    '=': 'Equal', '>': 'GreaterThan', '<': 'LessThan', '>=': 'GreaterEqual', '<=': 'LessEqual',
-    '!=': 'NotEqual', 'in': 'In', 'not in': 'NotIn', 'like': 'Like', 'not like': 'NotLike'
+    '==': 'Equal', '>': 'GreaterThan', '<': 'LessThan', '>=': 'GreaterEqual', '<=': 'LessEqual',
+    '!=': 'NotEqual', 'in': 'In', 'not_in': 'NotIn', 'like': 'Like'
 }
 
 def ignore_error(func):
@@ -25,7 +24,7 @@ def ignore_error(func):
                 print('Something Error happened while parsing:', e)
                 # if fail to parse, just return SELECT * FROM table(id=0)
                 error_sql = {
-                    "select": [False, [(0, [0, [0, 0, False], None])]],
+                    "select": [(0, [0, [0, 0, False], None])],
                     "from": {'table_units': [('table_unit', 0)], 'conds': []},
                     "where": [], "groupBy": [], "orderBy": [], "having": [], "limit": None,
                     "intersect": [], "union": [], "except": []
@@ -81,12 +80,12 @@ class Parser():
         if sql['orderBy']: ctr_name += 'OrderBy'
         ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
         select_field = ast_node[self.grammar.get_field_by_text('select select')][0]
-        select_field.add_value(self.parse_select(sql['select'][1]))
+        select_field.add_value(self.parse_select(sql['select']))
         from_field = ast_node[self.grammar.get_field_by_text('from from')][0]
         from_field.add_value(self.parse_from(sql['from'], sql_values, track))
         if sql['where']:
             where_field = ast_node[self.grammar.get_field_by_text('condition where')][0]
-            where_field.add_value(self.parse_condition(sql['where'], sql_values, track=track + '->where'))
+            where_field.add_value(self.parse_condition(sql['where'], sql_values, track=track + '->where', int_as_column=False))
         if sql['groupBy']:
             groupby_field = ast_node[self.grammar.get_field_by_text('groupby groupby')][0]
             groupby_field.add_value(self.parse_groupby(sql['groupBy'], sql['having'], sql_values, track))
@@ -107,19 +106,23 @@ class Parser():
             return [agg, val_unit[0], val_unit[1][1], None]
 
     def parse_col_unit(self, col_unit):
+        # remember to assign 0 for TIME_NOW, and add 1 for all other column ids
         if col_unit[1] != 0: # unit_op is not none
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('BinaryColumnUnit'))
             agg_op_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(AGG_OP[col_unit[0]].title()))
             ast_node[self.grammar.get_field_by_text('agg_op agg_op')][0].add_value(agg_op_node)
             unit_op_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(UNIT_OP_NAME[col_unit[1]]))
             ast_node[self.grammar.get_field_by_text('unit_op unit_op')][0].add_value(unit_op_node)
-            ast_node[self.grammar.get_field_by_text('col_id left_col_id')][0].add_value(int(col_unit[2]))
-            ast_node[self.grammar.get_field_by_text('col_id right_col_id')][0].add_value(int(col_unit[3]))
+            col_id = 0 if type(col_unit[2]) == str else 1 + int(col_unit[2])
+            ast_node[self.grammar.get_field_by_text('col_id left_col_id')][0].add_value(col_id)
+            col_id = 0 if type(col_unit[3]) == str else 1 + int(col_unit[3])
+            ast_node[self.grammar.get_field_by_text('col_id right_col_id')][0].add_value(col_id)
         else:
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('UnaryColumnUnit'))
             agg_op_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(AGG_OP[col_unit[0]].title()))
             ast_node[self.grammar.get_field_by_text('agg_op agg_op')][0].add_value(agg_op_node)
-            ast_node[self.grammar.get_field_by_text('col_id col_id')][0].add_value(int(col_unit[2]))
+            col_id = 0 if type(col_unit[2]) == str else 1 + int(col_unit[2])
+            ast_node[self.grammar.get_field_by_text('col_id col_id')][0].add_value(col_id)
         return ast_node
 
     def parse_select(self, agg_val_list: list):
@@ -144,58 +147,47 @@ class Parser():
             for idx, (_, tab_id) in enumerate(table_units):
                 table_fields[idx].add_value(int(tab_id))
             if len(from_conds) > 0:
-                cond_field = ast_node[self.grammar.get_field_by_text('tab_join tab_join')][0]
-                cond_field.add_value(self.parse_from_condition(from_conds))
+                cond_fields = ast_node[self.grammar.get_field_by_text('join join')]
+                from_conds = [cond for cond in from_conds if cond not in ['and', 'or']]
+                for idx, cond_field in enumerate(cond_fields):
+                    cond_field.add_value(self.parse_table_join(from_conds[idx]))
         else:
             assert t == 'sql'
-            from_sql = table_units[0][1]
+            left_from_sql, right_from_sql = table_units[0][1], table_units[1][1]
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('FromSQL'))
-            ast_node[self.grammar.get_field_by_text('sql from_sql')][0].add_value(self.parse_sql(from_sql, sql_values, track + '->from'))
+            ast_node[self.grammar.get_field_by_text('sql left_from_sql')][0].add_value(self.parse_sql(left_from_sql, sql_values, track + '->from'))
+            ast_node[self.grammar.get_field_by_text('sql right_from_sql')][0].add_value(self.parse_sql(right_from_sql, sql_values, track + '->from'))
         return ast_node
 
-    def parse_from_condition(self, from_conds):
-        ctr_name = 'TableJoin' + ASDLConstructor.number2word[(len(from_conds) + 1) // 2]
-        ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
-        fields = ast_node[self.grammar.get_field_by_text('join join')]
-        idx = 0
-        for cond in from_conds:
-            if cond in ['and', 'or']: continue
-            _, _, val_unit, val1, _ = cond
-            col_id1, col_id2 = val_unit[1][1], val1[1]
-            cur_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('ColumnJoin'))
-            col_field1 = cur_node[self.grammar.get_field_by_text('col_id col_id')][0]
-            col_field1.add_value(int(col_id1))
-            col_field2 = cur_node[self.grammar.get_field_by_text('col_id col_id')][1]
-            col_field2.add_value(int(col_id2))
-            fields[idx].add_value(cur_node)
-            idx += 1
+    def parse_table_join(self, cond):
+        ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('ColumnJoin'))
+        _, _, val_unit, val1, _ = cond
+        col_id1, col_id2 = int(val_unit[1][1]), int(val1)
+        fields = ast_node[self.grammar.get_field_by_text('col_id col_id')]
+        fields[0].add_value(col_id1)
+        fields[1].add_value(col_id2)
         return ast_node
 
     def parse_groupby(self, groupby_clause: list, having_clause: list, sql_values: set, track: str):
-        ctr_name = 'GroupByColumn' + ASDLConstructor.number2word[len(groupby_clause)] if not having_clause else \
-            'GroupByHavingColumn' + ASDLConstructor.number2word[len(groupby_clause)]
+        ctr_name = 'GroupByColumn' if not having_clause else 'GroupByHavingColumn'
         ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
-        groupby_fields = ast_node[self.grammar.get_field_by_text('col_id col_id')]
-        for idx, col_unit in enumerate(groupby_clause):
-            groupby_fields[idx].add_value(int(col_unit[1]))
+        groupby_field = ast_node[self.grammar.get_field_by_text('col_id col_id')][0]
+        groupby_field.add_value(int(groupby_clause[0][1]) + 1)
         if having_clause:
             having_field = ast_node[self.grammar.get_field_by_text('condition having')][0]
-            having_field.add_value(self.parse_condition(having_clause, sql_values, track=track + '->having'))
+            having_field.add_value(self.parse_condition(having_clause, sql_values, track=track + '->having', int_as_column=False))
         return ast_node
 
     def parse_orderby(self, orderby_clause: list, limit: int, sql_values: set, track: str):
-        ctr_name = 'OrderByLimitColumn' + ASDLConstructor.number2word[len(orderby_clause[1])] if limit else \
-            'OrderByColumn' + ASDLConstructor.number2word[len(orderby_clause[1])]
+        ctr_name = 'OrderByLimitColumn' if limit else 'OrderByColumn'
         ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
-        col_fields = ast_node[self.grammar.get_field_by_text('col_unit col_unit')]
-        for idx, val_unit in enumerate(orderby_clause[1]):
-            col_unit = self.convert_val_unit(val_unit)
-            col_node = self.parse_col_unit(col_unit)
-            col_fields[idx].add_value(col_node)
+        col_field = ast_node[self.grammar.get_field_by_text('col_unit col_unit')][0]
+        agg, val_unit = orderby_clause[1][0]
+        col_field.add_value(self.parse_col_unit(self.convert_agg_val_unit(agg, val_unit)))
         order_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(orderby_clause[0].title()))
         ast_node[self.grammar.get_field_by_text('order order')][0].add_value(order_node)
         if limit:
-            sqlvalue = SQLValue(str(limit), State(track + '->limit', 'none', '=', 'none', 0))
+            sqlvalue = SQLValue(str(limit), State(track + '->limit', 'none', '==', 'none', 0))
             for v in sql_values:
                 if v == sqlvalue:
                     ast_node[self.grammar.get_field_by_text('val_id limit')][0].add_value(int(v.value_id))
@@ -204,73 +196,42 @@ class Parser():
                 raise ValueError('Unable to find LIMIT %s in extracted values' % (limit))
         return ast_node
 
-    def parse_condition(self, condition: list, sql_values: set, track: str):
-        and_conds, or_conds = [], []
-        prev_conj, prev_cond = 'and', condition[0]
+    def parse_condition(self, condition: list, sql_values: set, track: str, int_as_column: bool = False):
         if len(condition) > 1:
-            for cond in condition[1:]:
-                if cond in ['and', 'or']:
-                    prev_conj = cond
-                    if prev_conj == 'and':
-                        and_conds.append(prev_cond)
-                    else:
-                        or_conds.append(prev_cond)
-                else: prev_cond = cond
-        if prev_conj == 'and': and_conds.append(prev_cond)
-        else: or_conds.append(prev_cond)
-        if len(and_conds) > 0 and len(or_conds) > 0:
-            ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('AndConditionTwo'))
+            ctr_name = 'OrConditionTwo' if condition[1] == 'or' else 'AndConditionTwo'
+            ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
             condition_fields = ast_node[self.grammar.get_field_by_text('condition condition')]
-            new_and_conds = list(chain.from_iterable(zip(and_conds, repeat("and"))))[:-1]
-            condition_fields[0].add_value(self.parse_condition(new_and_conds, sql_values, track))
-            new_or_conds = list(chain.from_iterable(zip(or_conds, repeat("or"))))[:-1]
-            condition_fields[1].add_value(self.parse_condition(new_or_conds, sql_values, track))
-        elif len(and_conds) > 0:
-            if len(and_conds) == 1: ast_node = self.parse_cond(and_conds[0], sql_values, track)
-            else:
-                ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('AndCondition' + ASDLConstructor.number2word[len(and_conds)]))
-                condition_fields = ast_node[self.grammar.get_field_by_text('condition condition')]
-                for idx, cond in enumerate(and_conds):
-                    condition_fields[idx].add_value(self.parse_cond(cond, sql_values, track))
+            idx = 0
+            for cond in condition:
+                if cond in ['and', 'or']: continue
+                condition_fields[idx].add_value(self.parse_cond(cond, sql_values, track, int_as_column))
+                idx += 1
         else:
-            assert len(or_conds) > 1, 'Number of OR conditions should be larger than one'
-            ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('OrCondition' + ASDLConstructor.number2word[len(or_conds)]))
-            condition_fields = ast_node[self.grammar.get_field_by_text('condition condition')]
-            for idx, cond in enumerate(or_conds):
-                condition_fields[idx].add_value(self.parse_cond(cond, sql_values, track))
+            ast_node = self.parse_cond(condition[0], sql_values, track, int_as_column)
         return ast_node
 
-    def parse_cond(self, cond: list, sql_values: set, track: str):
-        not_op, cmp_op, val_unit, val1, val2 = cond
-        agg_op, unit_op, col_id = val_unit[1][0], val_unit[0], val_unit[1][1]
-        ctr_name = 'CmpCondition' if CMP_OP[cmp_op] != 'between' else 'BetweenCondition'
-        ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
-        col_node = self.parse_col_unit(self.convert_val_unit(val_unit))
+    def parse_cond(self, cond: list, sql_values: set, track: str, int_as_column: bool = False):
+        agg_op, cmp_op, val_unit, val1, _ = cond
+        unit_op, col_id = val_unit[0], val_unit[1][1]
+        ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('CmpCondition'))
+        ctr_name = CMP_OP_NAME[CMP_OP[cmp_op]]
+        cmp_op_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
+        ast_node[self.grammar.get_field_by_text('cmp_op cmp_op')][0].add_value(cmp_op_node)
+        col_node = self.parse_col_unit(self.convert_agg_val_unit(agg_op, val_unit))
         ast_node[self.grammar.get_field_by_text('col_unit col_unit')][0].add_value(col_node)
-        if CMP_OP[cmp_op] == 'between':
-            state = State(track, AGG_OP[agg_op], CMP_OP[cmp_op], UNIT_OP[unit_op], col_id)
-            value_node = self.parse_value(val1, sql_values, track, state)
-            ast_node[self.grammar.get_field_by_text('value left_value')][0].add_value(value_node)
-            state = State(track, AGG_OP[agg_op], CMP_OP[cmp_op], UNIT_OP[unit_op], col_id)
-            right_value_node = self.parse_value(val2, sql_values, track, state)
-            ast_node[self.grammar.get_field_by_text('value right_value')][0].add_value(right_value_node)
-        else:
-            not_op = 'not ' if not_op else ''
-            ctr_name = CMP_OP_NAME[not_op + CMP_OP[cmp_op]]
-            cmp_op_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
-            ast_node[self.grammar.get_field_by_text('cmp_op cmp_op')][0].add_value(cmp_op_node)
-            state = State(track, AGG_OP[agg_op], CMP_OP[cmp_op], UNIT_OP[unit_op], col_id)
-            value_node = self.parse_value(val1, sql_values, track, state)
-            ast_node[self.grammar.get_field_by_text('value value')][0].add_value(value_node)
+        state = State(track, AGG_OP[agg_op], CMP_OP[cmp_op], UNIT_OP[unit_op], col_id)
+        value_node = self.parse_value(val1, sql_values, track, state, int_as_column)
+        ast_node[self.grammar.get_field_by_text('value value')][0].add_value(value_node)
         return ast_node
 
-    def parse_value(self, val, sql_values, track, state):
+    def parse_value(self, val, sql_values, track, state, int_as_column):
         if type(val) == dict: # nested sql
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('SQLValue'))
             ast_node[self.grammar.get_field_by_text('sql value_sql')][0].add_value(self.parse_sql(val, sql_values, track))
-        elif type(val) == list: # column
+        elif type(val) == int and int_as_column: # column
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('ColumnValue'))
-            ast_node[self.grammar.get_field_by_text('col_id col_id')][0].add_value(int(val[1]))
+            col_id = 1 + int(val)
+            ast_node[self.grammar.get_field_by_text('col_id col_id')][0].add_value(col_id)
         else: # literal value
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('LiteralValue'))
             sql_value = SQLValue(str(val), state)

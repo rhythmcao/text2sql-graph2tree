@@ -7,11 +7,11 @@ def init_args(params=sys.argv[1:]):
     arg_parser = add_argument_base(arg_parser)
     arg_parser = add_argument_encoder(arg_parser)
     arg_parser = add_argument_decoder(arg_parser)
-    arg_parser = add_argument_gtol(arg_parser)
+    arg_parser = add_argument_gtl(arg_parser)
     opt = arg_parser.parse_args(params)
-    if opt.model == 'rgatsql' and opt.local_and_nonlocal == 'msde':
+    if opt.encode_method in ['irnet', 'rgatsql'] and opt.local_and_nonlocal == 'msde':
         opt.local_and_nonlocal = 'global'
-    if opt.model == 'lgesql' and opt.local_and_nonlocal == 'global':
+    if opt.encode_method == 'lgesql' and opt.local_and_nonlocal == 'global':
         opt.local_and_nonlocal = 'msde'
     return opt
 
@@ -19,13 +19,14 @@ def add_argument_base(arg_parser):
     #### General configuration ####
     arg_parser.add_argument('--task', default='text2sql', help='task name')
     arg_parser.add_argument('--dataset', type=str, default='spider', choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider'])
-    arg_parser.add_argument('--db_dir', type=str, default='data/spider/database')
     arg_parser.add_argument('--seed', default=999, type=int, help='Random seed')
     arg_parser.add_argument('--device', type=int, default=0, help='Use which device: -1 -> cpu ; the index of gpu o.w.')
+    arg_parser.add_argument('--ddp', type=str, help='use distributed data parallel training')
     arg_parser.add_argument('--testing', action='store_true', help='training or evaluation mode')
     arg_parser.add_argument('--read_model_path', type=str, help='read pretrained model path')
     #### Training Hyperparams ####
     arg_parser.add_argument('--batch_size', default=20, type=int, help='Batch size')
+    arg_parser.add_argument('--test_batch_size', default=64, type=int, help='Test batch size')
     arg_parser.add_argument('--grad_accumulate', default=1, type=int, help='accumulate grad and update once every x steps')
     arg_parser.add_argument('--lr', type=float, default=5e-4, help='learning rate')
     arg_parser.add_argument('--layerwise_decay', type=float, default=1.0, help='layerwise decay rate for lr, used for PLM')
@@ -40,7 +41,7 @@ def add_argument_base(arg_parser):
 
 def add_argument_encoder(arg_parser):
     # Encoder Hyperparams
-    arg_parser.add_argument('--model', choices=['rgatsql', 'lgesql'], default='lgesql', help='which text2sql model to use')
+    arg_parser.add_argument('--encode_method', choices=['irnet', 'rgatsql', 'lgesql'], default='lgesql', help='which text2sql encoder to use')
     arg_parser.add_argument('--local_and_nonlocal', choices=['mmc', 'msde', 'local', 'global'], default='mmc', 
         help='how to integrate local and non-local relations: mmc -> multi-head multi-view concatenation ; msde -> mixed static and dynamic embeddings')
     arg_parser.add_argument('--plm', type=str, choices=['bert-base-uncased', 'bert-large-uncased', 'bert-large-uncased-whole-word-masking',
@@ -81,11 +82,11 @@ def add_argument_decoder(arg_parser):
     arg_parser.add_argument('--decode_max_step', default=120, type=int, help='Maximum number of time steps used in decoding')
     return arg_parser
 
-def add_argument_gtol(arg_parser):
-    arg_parser.add_argument('--gtol_size', default=4, type=int, help='number of reserved size during GTOL')
+def add_argument_gtl(arg_parser):
+    arg_parser.add_argument('--gtl_size', default=4, type=int, help='number of reserved size during GTL')
     arg_parser.add_argument('--n_best', default=5, type=int, help='returned number of examples to calculate loss')
-    arg_parser.add_argument('--ts_order', type=str, default='random', choices=['controller', 'random', 'probe'], help='order method for typed set in GTOL training')
-    arg_parser.add_argument('--uts_order', type=str, default='probe', choices=['controller', 'random', 'probe'], help='order method for untyped set in GTOL training')
+    arg_parser.add_argument('--ts_order', type=str, default='random', choices=['controller', 'random', 'enum'], help='order method for typed set in GTL training')
+    arg_parser.add_argument('--uts_order', type=str, default='enum', choices=['controller', 'random', 'enum'], help='order method for untyped set in GTL training')
     arg_parser.add_argument('--read_ts_order_path', type=str, help='read saved best order for typed set, actually the order for each grammar rule')
-    arg_parser.add_argument('--read_uts_order_path', type=str, help='read saved best order for untyped set, actually the order for each training sample')
+    arg_parser.add_argument('--read_canonical_action_path', type=str, help='read saved canonical action sequence')
     return arg_parser

@@ -1,24 +1,20 @@
 #coding=utf-8
+import random
 from asdl.asdl import *
 from asdl.asdl_ast import AbstractSyntaxTree
 from asdl.transition_system import *
 from asdl.hypothesis import Hypothesis
 
+
 class TrainingHypothesis(Hypothesis):
+
     """ Based on Hypothesis, also maintain the pointer to the golden AST tree
     """
+
     def __init__(self, golden_tree=None):
         super(TrainingHypothesis, self).__init__()
         self.golden_ptr = golden_tree
 
-    def get_remaining_field_ids(self, field):
-        already_gen_fields = self.frontier_node.field_tracker[field]
-        field_num = self.frontier_node.production.fields[field]
-        remaining_ids = []
-        for idx in range(field_num):
-            if idx not in already_gen_fields:
-                remaining_ids.append(idx)
-        return remaining_ids
 
     def apply_field_action(self, field, action, idx=0, score=0.):
         """ Different from Hypothesis, field_tracker must be filled with implemented field index in golden_ptr[field],
@@ -50,8 +46,8 @@ class TrainingHypothesis(Hypothesis):
         self.frontier_node, self.golden_ptr = self.update_frontier_node(self.frontier_node, self.golden_ptr)
 
         self.t += 1
-        self.actions.append(action)
-        # self.actions.append((field, action))
+        self.field_actions.append((field, action))
+
 
     def update_frontier_node(self, node: AbstractSyntaxTree, ptr: AbstractSyntaxTree):
         if node.decode_finished:
@@ -65,6 +61,7 @@ class TrainingHypothesis(Hypothesis):
                 return self.update_frontier_node(node, ptr)
         else: # do nothing, still the current node
             return node, ptr
+
 
     def copy(self):
         new_hyp = super(TrainingHypothesis, self).copy()

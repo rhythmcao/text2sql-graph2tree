@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from model.model_utils import Registrable, FFN
 from model.encoder.functions import *
 
+
 @Registrable.register('rgatsql')
 class RGATSQL(nn.Module):
 
@@ -49,6 +50,7 @@ class RGATSQL(nn.Module):
                 x, lgx = self.gnn_layers[i](x, lgx, graph)
         return x
 
+
 class RGATLayer(nn.Module):
 
     def __init__(self, ndim, edim, num_heads=8, feat_drop=0.2):
@@ -86,13 +88,14 @@ class RGATLayer(nn.Module):
 
     def propagate_attention(self, g):
         # Compute attention score
-        g.apply_edges(src_sum_edge_mul_dst('k', 'q', 'e', 'score'))
+        g.apply_edges(src_sum_edge_dot_dst('k', 'q', 'e', 'score'))
         g.apply_edges(scaled_exp('score', math.sqrt(self.d_k)))
         # Update node state
         g.update_all(src_sum_edge_mul_edge('v', 'e', 'score', 'v'), fn.sum('v', 'wv'))
         g.update_all(fn.copy_edge('score', 'score'), fn.sum('score', 'z'), div_by_z('wv', 'z', 'o'))
         out_x = g.ndata['o']
         return out_x
+
 
 class MultiViewRGATLayer(RGATLayer):
 

@@ -9,7 +9,7 @@ class Hypothesis(object):
     """
     def __init__(self):
         self.tree = None
-        self.actions = []
+        self.field_actions = []
         self.frontier_node = None
 
         # record the current time step
@@ -40,7 +40,7 @@ class Hypothesis(object):
         self.frontier_node = self.update_frontier_node(self.frontier_node)
 
         self.t += 1
-        self.actions.append(action)
+        self.field_actions.append((field, action))
 
     def update_frontier_node(self, node: AbstractSyntaxTree):
         if node.decode_finished:
@@ -66,7 +66,7 @@ class Hypothesis(object):
             # find and set the frontier_node for the new tree using backtrace
             new_hyp.retrieve_and_set_frontier_node(self)
 
-        new_hyp.actions = list(self.actions)
+        new_hyp.field_actions = list(self.field_actions)
         new_hyp.score = self.score
         new_hyp.t = self.t
         return new_hyp

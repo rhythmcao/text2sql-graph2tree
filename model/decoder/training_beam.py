@@ -9,20 +9,17 @@ from asdl.transition_system import ApplyRuleAction, SelectColumnAction, SelectTa
 class TrainingBeam(Beam):
     """ Maintain a beam of hypothesis during decoding for each example
     """
-    def __init__(self, golden: AbstractSyntaxTree, trans: TransitionSystem, beam_size: int = 5, order_method: str = 'controller', device: torch.device = None) -> None:
+    def __init__(self, golden: AbstractSyntaxTree, trans: TransitionSystem, beam_size: int = 5, ts_order: str = 'random', uts_order: str = 'enum', device: torch.device = None) -> None:
         assert beam_size >= 1
-        self.golden = golden
-        self.trans, self.grammar = trans, trans.grammar
-        self.beam_size, self.order_method = beam_size, order_method
+        self.trans, self.grammar, self.order_controller = trans, trans.grammar, trans.order_controller
+        self.beam_size, self.ts_order, self.uts_order = beam_size, ts_order, uts_order
         self.device = device
         # record the current hypothesis and current input fields
-        self.hyps = [TrainingHypothesis(self.golden)]
+        self.hyps = [TrainingHypothesis(golden)]
         self.fields = [None]
         self.live_hyp_ids = [0]
         self.completed_hyps = []
 
-    # def get_previous_actions(self):
-        # return [hyp.actions[-1][1] for hyp in self.hyps]
 
     def advance(self, ar_score, st_score, sc_score, sv_score):
         """ Four types of scores: num_hyps x rule_num, num_hyps x max_tab_num, num_hyps x max_col_num, num_hyps x max_val_num
@@ -46,27 +43,28 @@ class TrainingBeam(Beam):
 
             golden_fields_list = cur_ptr[field]
             act_type = self.trans.field_to_action(field)
-            remaining_field_ids = hyp.get_remaining_field_ids(field)
+            # attention that hyp maintains a pointer to the golden ast
+            field_indexes = self.order_controller.get_golden_remaining_actions(hyp, field, uts_order=self.uts_order)
             if act_type == ApplyRuleAction:
-                for fid in remaining_field_ids:
+                for fid in field_indexes:
                     p = golden_fields_list[fid].value.production
                     score = ar_score[idx, self.grammar.prod2id[p]]
                     hyp_score = hyp.score + score
                     metas.append((idx, p, fid, score, hyp_score))
             elif act_type == SelectTableAction:
-                for fid in remaining_field_ids:
+                for fid in field_indexes:
                     tid = int(golden_fields_list[fid].value)
                     score = st_score[idx, tid]
                     hyp_score = hyp.score + score
                     metas.append((idx, tid, fid, score, hyp_score))
             elif act_type == SelectColumnAction:
-                for fid in remaining_field_ids:
+                for fid in field_indexes:
                     cid = int(golden_fields_list[fid].value)
                     score = sc_score[idx, cid]
                     hyp_score = hyp.score + score
                     metas.append((idx, cid, fid, score, hyp_score))
             else: # SelectValueAction
-                for fid in remaining_field_ids:
+                for fid in field_indexes:
                     vid = int(golden_fields_list[fid].value)
                     score = sv_score[idx, vid]
                     hyp_score = hyp.score + score
@@ -88,8 +86,8 @@ class TrainingBeam(Beam):
             if new_hyp.golden_ptr is None: # a faster criterion
                 self.completed_hyps.append(new_hyp)
                 continue
-            # find next valid fields
-            fields_list = self.trans.get_valid_continuing_fields(new_hyp, method=self.order_method)
+            # find next valid fields as inputs
+            fields_list = self.order_controller.get_valid_continuing_fields(new_hyp, ts_order=self.ts_order)
             new_fields.extend(fields_list)
             new_hyps.extend([new_hyp] * len(fields_list))
             live_hyp_ids.extend([hyp_id] * len(fields_list))

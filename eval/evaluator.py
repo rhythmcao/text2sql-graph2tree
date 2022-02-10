@@ -94,16 +94,16 @@ class Evaluator():
     @classmethod
     def get_class_by_dataset(self, dataset):
         if dataset == 'spider':
-            from utils.spider.evaluator import SpiderEvaluator
+            from eval.spider.evaluator import SpiderEvaluator
             return SpiderEvaluator
         elif dataset == 'dusql':
-            from utils.dusql.evaluator import DuSQLEvaluator
+            from eval.dusql.evaluator import DuSQLEvaluator
             return DuSQLEvaluator
         else:
             raise ValueError(f'[Error]: Unrecognized dataset "{dataset}" for evaluator')
 
 
-    def value_fscore(self, vals, dataset, metric='fscore'):
+    def value_metric(self, vals, dataset, metric='fscore'):
         """
         @metric: by default, fscore
             fscore: dataset-level metric, compare value indexes and accumulate error items
@@ -131,20 +131,20 @@ class Evaluator():
                 err += 1
             if fn > p_fn:
                 missing += 1
-        if metric == 'fscore':
-            fscore = 2 * float(tp) / (2 * tp + fp + fn) if 2 * tp + fp + fn > 0 else 0.0
-            return fscore
-        elif metric == 'acc':
-            acc = (len(pred) - err) / float(len(pred))
+        acc = (len(pred) - err) / float(len(pred))
+        acc_recall = (len(pred) - missing) / float(len(pred))
+        fscore = 2 * float(tp) / (2 * tp + fp + fn) if 2 * tp + fp + fn > 0 else 0.0
+        if metric == 'acc':
             return acc
         elif metric == 'acc-recall':
-            acc_recall = (len(pred) - missing) / float(len(pred))
             return acc_recall
+        elif metric == 'fscore':
+            return fscore
         else:
-            raise ValueError(f'[Error]: Not recognized metric "{metric}" for value recognition')
+            return acc, acc_recall, fscore
 
 
-    def schema_acc(self, gates, dataset, metric='acc'):
+    def schema_metric(self, gates, dataset, metric='acc'):
         """
         @metric: by default, acc
             fscore: dataset-level metric, compare each schema item and accumulate error items
@@ -167,17 +167,17 @@ class Evaluator():
             tp += torch.logical_and(p, g).sum().item()
             fp_fn += torch.logical_xor(p, g).sum().item()
 
+        acc = correct / float(len(pred))
+        acc_recall = full_recall / float(len(pred))
+        fscore = 2 * float(tp) / (2 * tp + fp_fn) if 2 * tp + fp_fn > 0 else 0.0
         if metric == 'acc':
-            acc = correct / float(len(pred))
             return acc
         elif metric == 'acc-recall':
-            acc_recall = full_recall / float(len(pred))
             return acc_recall
         elif metric == 'fscore':
-            fscore = 2 * float(tp) / (2 * tp + fp_fn) if 2 * tp + fp_fn > 0 else 0.0
             return fscore
         else:
-            raise ValueError(f'[Error]: Not recognized metric "{metric}" for graph pruning')
+            return acc, acc_recall, fscore
 
 
     def acc(self, pred_hyps, values, dataset, output_path=None, acc_type='sql', etype='exec'):

@@ -2,7 +2,7 @@
 import re
 from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
-from asdl.spider.parser import UNIT_OP_NAME
+from asdl.spider.parser_v1 import UNIT_OP_NAME
 from preprocess.spider.value_utils import ValueProcessor, UNIT_OP
 from preprocess.process_utils import State
 from functools import wraps
@@ -122,7 +122,7 @@ class UnParser():
 
     def unparse_groupby(self, groupby_ast: AbstractSyntaxTree, db: dict, value_candidates: list, *args, **kargs):
         groupby_str, having_str = [], ''
-        groupby_fields = groupby_ast[self.grammar.get_field_by_text('col_id groupby_col_id')]
+        groupby_fields = groupby_ast[self.grammar.get_field_by_text('col_id col_id')]
         for col_field in groupby_fields:
             col_id = col_field.value
             col_name = self.retrieve_column_name(col_id, db)

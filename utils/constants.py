@@ -14,6 +14,12 @@ MAX_RELATIVE_DIST = 2
 MAX_CELL_NUM = 2
 
 # relations: type_1-type_2-relation_name, r represents reverse edge, b represents bidirectional edge
+NONLOCAL_RELATIONS = [
+    'question-question-generic', 'table-table-generic', 'column-column-generic', 'table-column-generic', 'column-table-generic',
+    'table-table-fk', 'table-table-fkr', 'table-table-fkb', 'column-column-sametable',
+    'question-question-identity', 'table-table-identity', 'column-column-identity'] + [
+    'question-question-dist' + str(i) for i in range(- MAX_RELATIVE_DIST, MAX_RELATIVE_DIST + 1, 1) if i not in [-1, 0, 1]
+]
 # column-column-time for link between TIME_NOW and any column with type 'time'
 RELATIONS = ['question-question-dist' + str(i) if i != 0 else 'question-question-identity' for i in range(- MAX_RELATIVE_DIST, MAX_RELATIVE_DIST + 1)] + \
     ['table-table-identity', 'table-table-fk', 'table-table-fkr', 'table-table-fkb'] + \

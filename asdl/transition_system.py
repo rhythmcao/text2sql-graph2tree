@@ -2,8 +2,8 @@
 import random
 import numpy as np
 from asdl.asdl import ASDLGrammar
-from asdl.ast_comparison import ASTComparison
 from utils.vocab import Vocab
+
 
 class Action(object):
     pass
@@ -25,6 +25,7 @@ class ApplyRuleAction(Action):
     def __repr__(self):
         return 'ApplyRuleAction[%s]' % self.production.__repr__()
 
+
 class GenTokenAction(Action):
     def __init__(self, token):
         self.token = token
@@ -32,17 +33,21 @@ class GenTokenAction(Action):
     def __repr__(self):
         return "%s[id=%s]" % (self.__class__.__name__, self.token)
 
+
 class SelectColumnAction(GenTokenAction):
     @property
     def column_id(self):
         return self.token
+
 
 class SelectTableAction(GenTokenAction):
     @property
     def table_id(self):
         return self.token
 
+
 class SelectValueAction(GenTokenAction):
+
     reserved_spider = Vocab(iterable=['null', 'false', 'true', '0', '1'], default='1')
     reserved_dusql = Vocab(iterable=['否', '是', '0', '1'], default='1')
 
@@ -77,42 +82,47 @@ class TransitionSystem(object):
 
     def __init__(self, grammar: ASDLGrammar):
         self.grammar = grammar
+        from asdl.order_controller import OrderController
+        self.order_controller = OrderController(grammar)
         self.parser, self.unparser = None, None
 
-    def get_field_action_pairs(self, asdl_ast, typed_random=False, untyped_random=False):
+
+    def get_field_action_pairs(self, asdl_ast, ts_random=False, uts_random=False):
         """ Generate (Field, Action) sequence given the golden ASDL Syntax Tree.
-        random: control the generation order for the list of RealizedField with the same Field type,
-            order for different Field types is controlled by self.grammar.order_controller
+        random~(bool): control the generation order, attention that enum is not feasible~(lead to explosive number of paths)
         """
-        actions = []
+        output_pairs = []
 
         prod = asdl_ast.production
         parent_action = ApplyRuleAction(prod)
-        if asdl_ast.parent_field is not None:
-            actions.append((asdl_ast.parent_field.field, parent_action))
-        else:
-            actions.append((None, parent_action))
-        ordered_fields = self.grammar.order_controller[prod] if len(prod.fields) > 1 \
-            else list(prod.fields.keys()) # just return the dict with only one Field as key
+        output_pairs.append((asdl_ast.parent_field.field if asdl_ast.parent_field is not None else None, parent_action))
+        
+        if len(prod.fields) > 1 and asdl_ast.field_order:
+            ordered_fields = asdl_ast.field_order
+        elif len(prod.fields) > 1:
+            ordered_fields = self.order_controller[prod]
+        else: ordered_fields = list(prod.fields.keys())
+        
         typed_idxs = np.arange(len(ordered_fields))
-        if typed_random and len(ordered_fields) > 1:
+        if ts_random and len(ordered_fields) > 1:
             np.random.shuffle(typed_idxs)
         for idx in typed_idxs:
             field = ordered_fields[idx]
-            fields_list = asdl_ast.fields[field]
+            fields_list = asdl_ast[field]
+            ordered_idxs = asdl_ast.field_tracker[field] if asdl_ast.field_tracker[field] else np.arange(len(fields_list))
             untyped_idxs = np.arange(len(fields_list))
-            if untyped_random and len(untyped_idxs) > 1:
+            if uts_random and len(fields_list) > 1:
                 np.random.shuffle(untyped_idxs)
             for jdx in untyped_idxs:
-                real_field = fields_list[jdx]
+                field_id = ordered_idxs[jdx]
+                real_field = fields_list[field_id]
                 # is a composite field
                 if self.grammar.is_composite_type(real_field.type):
-                    field_actions = self.get_field_action_pairs(real_field.value, typed_random, untyped_random)
+                    field_actions = self.get_field_action_pairs(real_field.value, ts_random, uts_random)
                 else:  # is a primitive field
                     field_actions = self.get_primitive_field_actions(real_field)
-                actions.extend(field_actions)
-
-        return actions
+                output_pairs.extend(field_actions)
+        return output_pairs
 
 
     def ast_to_surface_code(self, asdl_ast, table, value_candidates, *args, **kargs):
@@ -120,6 +130,7 @@ class TransitionSystem(object):
         value_candidates: list of ValueCandidate to extract the corresponding question index span
         """
         return self.unparser.unparse(asdl_ast, table, value_candidates, *args, **kargs)
+
 
     def surface_code_to_ast(self, code, sql_values):
         """ sql_values restore pre-retrieved values from the question and sql dict
@@ -130,44 +141,19 @@ class TransitionSystem(object):
     def get_primitive_field_actions(self, realized_field):
         return [(realized_field.field, TransitionSystem.primitive_type_to_action[realized_field.type.name](int(realized_field.value)))]
 
+
     def field_to_action(self, field):
-        if field:
+        if field: # typed constraint for grammar rules
             return TransitionSystem.primitive_type_to_action.get(field.type.name, ApplyRuleAction)
         else: return ApplyRuleAction
 
-    def get_valid_continuing_fields(self, hyp, method='controller'):
-        """ Enumerate all valid fields for the current frontier node
-        return fields list instead of a single Field object
-        """
-        frontier_node = hyp.frontier_node
-        if len(frontier_node.fields) == 1: # only one Field, directly return
-            return list(frontier_node.fields.keys())
-        valid_fields = []
-        for field in frontier_node.field_tracker:
-            if 0 < len(frontier_node.field_tracker[field]) < len(frontier_node.fields[field]):
-                return [field]
-            elif len(frontier_node.field_tracker[field]) == len(frontier_node.fields[field]): # finished
-                continue
-            else: valid_fields.append(field)
-        if not valid_fields: raise ValueError('No continuing field found!')
-        if method == 'all':
-            return valid_fields
-        elif method == 'controller':
-            for field in self.grammar.order_controller[frontier_node.production]:
-                if field in valid_fields:
-                    return [field]
-            raise ValueError('No continuing field found!')
-        elif method == 'random':
-            return [random.choice(valid_fields)]
-        else:
-            raise ValueError('Not recognized order method %s!' % (method))
 
     @staticmethod
-    def get_class_by_dataset(lang):
-        if lang == 'spider':
+    def get_class_by_dataset(dataset):
+        if dataset == 'spider':
             from asdl.spider.sql_transition_system import SQLTransitionSystem
-        elif lang == 'dusql':
+        elif dataset == 'dusql':
             from asdl.dusql.sql_transition_system import SQLTransitionSystem
         else:
-            raise ValueError('unknown language %s' % lang)
+            raise ValueError('unknown dataset name %s' % dataset)
         return SQLTransitionSystem

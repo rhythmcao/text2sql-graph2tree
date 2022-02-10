@@ -1,7 +1,6 @@
 #coding=utf-8
 from __future__ import print_function
 import torch, math
-from torch._C import device
 import torch.nn as nn
 import numpy as np
 from torch.nn.parameter import Parameter
@@ -37,8 +36,7 @@ class StructDecoder(nn.Module):
 
         # transform column/table/value embeddings to action embedding space
         self.table_lstm_input = nn.Linear(args.gnn_hidden_size, args.action_embed_size)
-        self.column_lstm_input = self.table_lstm_input # nn.Linear(args.gnn_hidden_size, args.action_embed_size)
-        self.value_lstm_input = self.table_lstm_input # nn.Linear(args.gnn_hidden_size, args.action_embed_size)
+        self.value_lstm_input = self.column_lstm_input = self.table_lstm_input
 
         self.ext_feat_dim = 0 if not args.struct_feeding else args.field_embed_size + args.type_embed_size
         self.context_attn = MultiHeadAttention(args.gnn_hidden_size, args.lstm_hidden_size + self.ext_feat_dim, args.gnn_hidden_size, args.gnn_hidden_size,
@@ -54,13 +52,7 @@ class StructDecoder(nn.Module):
         self.apply_rule = TiedLinearClassifier(args.att_vec_size + self.ext_feat_dim, args.action_embed_size, bias=False)
         self.select_table = MultiHeadAttention(args.gnn_hidden_size, args.att_vec_size + self.ext_feat_dim, args.gnn_hidden_size, args.gnn_hidden_size,
             num_heads=args.num_heads, feat_drop=args.dropout)
-        if not args.no_share_clsfy:
-            self.select_column = self.select_value = self.select_table
-        else:
-            self.select_column = MultiHeadAttention(args.gnn_hidden_size, args.att_vec_size + self.ext_feat_dim, args.gnn_hidden_size, args.gnn_hidden_size,
-                num_heads=args.num_heads, feat_drop=args.dropout)
-            self.select_value = MultiHeadAttention(args.gnn_hidden_size, args.att_vec_size + self.ext_feat_dim, args.gnn_hidden_size, args.gnn_hidden_size,
-                num_heads=args.num_heads, feat_drop=args.dropout)
+        self.select_column = self.select_value = self.select_table
 
 
     def score(self, encodings, value_memory, h0, batch):
@@ -77,12 +69,13 @@ class StructDecoder(nn.Module):
         """
         args = self.args
         mask = batch.mask
-        value_memory = torch.cat([self.reserved_value_memory.expand(len(batch), -1, -1), value_memory], dim=1)
         padding_action_embed = encodings.new_zeros(args.action_embed_size)
         split_len = [batch.max_question_len, batch.max_table_len, batch.max_column_len]
         _, tab, col = encodings.split(split_len, dim=1)
         _, tab_mask, col_mask = mask.split(split_len, dim=1)
+        value_memory = torch.cat([self.reserved_value_memory.expand(len(batch), -1, -1), value_memory], dim=1)
         val_mask = lens2mask(batch.graph.value_nums + self.reserved_size)
+
         # h0: num_layers, bsize, lstm_hidden_size
         h0 = h0.unsqueeze(0).repeat(args.lstm_num_layers, 1, 1)
         h_c = (h0, h0.new_zeros(h0.size()))
@@ -171,13 +164,14 @@ class StructDecoder(nn.Module):
         return loss
 
 
-    def parse(self, encodings, value_memory, h0, batch, beam_size=5, order_method='controller'):
-        """ Parse all examples together, with fixed order provided by class OrderController
-        encodings: bs x (max_q + max_t + max_c) x gnn_hs
-        value_memory: bs x max_v_num x gnn_hs
-        h0: bs x gnn_hs
+    def parse(self, encodings, value_memory, h0, batch, beam_size=5,
+            gtl_training=True, ts_order='controller', uts_order='enum', n_best=1, cumulate_method='sum'):
+        """ Parse all examples together with beam search
+            encodings: bs x (max_q + max_t + max_c) x gnn_hs
+            value_memory: bs x max_v_num x gnn_hs
+            h0: bs x gnn_hs
         """
-        args = self.args
+        args, device = self.args, encodings.device
         num_examples, mask = len(batch), batch.mask
         split_len = [batch.max_question_len, batch.max_table_len, batch.max_column_len]
         _, table_memory, column_memory = encodings.split(split_len, dim=1)
@@ -185,18 +179,23 @@ class StructDecoder(nn.Module):
         value_memory = torch.cat([self.reserved_value_memory.repeat(num_examples, 1, 1), value_memory], dim=1)
         value_nums = batch.graph.value_nums + self.reserved_size
         value_mask = lens2mask(value_nums, max_len=value_nums.max())
-        table_nums, column_nums, value_nums = batch.table_lens.tolist(), batch.column_lens.tolist(), value_nums.tolist()
         table2action, column2action, value2action = self.table_lstm_input(table_memory), self.column_lstm_input(column_memory), self.value_lstm_input(value_memory)
         h0 = h0.unsqueeze(0).repeat(args.lstm_num_layers, 1, 1)
         h_c = (h0, h0.new_zeros(h0.size()))
         # prepare data structure to record each sample predictions
-        t, device = 0, encodings.device
         active_idx_mapping, hyp_states = list(range(num_examples)), h0.new_zeros(num_examples, 0, h0.size(-1))
-        beams = [Beam((table_nums[idx], column_nums[idx], value_nums[idx]), self.transition_system,
-            beam_size=beam_size, order_method=order_method, device=device) for idx in range(num_examples)]
         prev_ids = torch.arange(num_examples, dtype=torch.long, device=device)
+        if gtl_training:
+            beams = [TrainingBeam(batch[idx].ast, self.transition_system, ts_order=ts_order, uts_order=uts_order,
+                beam_size=beam_size, device=device) for idx in range(num_examples)]
+            max_action_num = batch.max_action_num
+        else:
+            table_nums, column_nums, value_nums = batch.table_lens.tolist(), batch.column_lens.tolist(), value_nums.tolist()
+            beams = [Beam((table_nums[idx], column_nums[idx], value_nums[idx]), self.transition_system,
+                beam_size=beam_size, ts_order=ts_order, device=device) for idx in range(num_examples)]
+            max_action_num = args.decode_max_step
 
-        while t < args.decode_max_step:
+        for t in range(max_action_num):
             # prepare structural input: num_hyp x (prev_action + parent_action + parent_field + parent_type + parent_hidden[ + parent_cxt])
             if t == 0: # all initialize to 0 except parent type and parent hidden states
                 inputs = encodings.new_zeros(num_examples, self.decoder_lstm.input_size)
@@ -286,121 +285,10 @@ class StructDecoder(nn.Module):
             if args.context_feeding:
                 context = context[live_hyp_ids]
 
-            t += 1
-
-        return [b.sort_finished() for b in beams]
-
-
-    def gtol_score(self, encodings, value_memory, h0, batch, beam_size=5, n_best=1, order_method='all', cum_method='sum'):
-        """ Golden tree oriented learning
-        """
-        args = self.args
-        num_examples, mask = len(batch), batch.mask
-        split_len = [batch.max_question_len, batch.max_table_len, batch.max_column_len]
-        _, table_memory, column_memory = encodings.split(split_len, dim=1)
-        _, table_mask, column_mask = mask.split(split_len, dim=1)
-        value_memory = torch.cat([self.reserved_value_memory.repeat(num_examples, 1, 1), value_memory], dim=1)
-        value_nums = batch.graph.value_nums + self.reserved_size
-        value_mask = lens2mask(value_nums, max_len=value_nums.max())
-        table2action, column2action, value2action = self.table_lstm_input(table_memory), self.column_lstm_input(column_memory), self.value_lstm_input(value_memory)
-        h0 = h0.unsqueeze(0).repeat(args.lstm_num_layers, 1, 1)
-        h_c = (h0, h0.new_zeros(h0.size()))
-        # prepare data structure to record each sample predictions
-        active_idx_mapping, hyp_states, device = list(range(num_examples)), h0.new_zeros(num_examples, 0, h0.size(-1)), encodings.device
-        beams = [TrainingBeam(batch[idx].ast, self.transition_system,
-            order_method=order_method, beam_size=beam_size, device=device) for idx in range(num_examples)]
-        prev_ids = torch.arange(num_examples, dtype=torch.long, device=device)
-
-        for t in range(batch.max_action_num):
-            # prepare structural input: num_hyp x (prev_action + parent_action + parent_field + parent_type + parent_hidden[ + parent_cxt])
-            if t == 0: # all initialize to 0 except parent type and parent hidden states
-                inputs = encodings.new_zeros(num_examples, self.decoder_lstm.input_size)
-                offset = args.action_embed_size * 2 + args.field_embed_size
-                root_type = torch.tensor([self.grammar.type2id[self.grammar.root_type]] * num_examples, dtype=torch.long, device=device)
-                inputs[:, offset: offset + args.type_embed_size] = self.type_embed(root_type)
-                offset += args.type_embed_size
-                inputs[:, offset: offset + args.lstm_hidden_size] = h0[-1]
-
-                cur_encodings, cur_table_memory, cur_column_memory, cur_value_memory = encodings, table_memory, column_memory, value_memory
-                cur_mask, cur_table_mask, cur_column_mask, cur_value_mask = mask, table_mask, column_mask, value_mask
-                num_hyps = [1] * num_examples
-            else:
-                # previous action embeddings
-                prev_action_embeds = []
-                prev_actions = [beams[bid].get_previous_actions() for bid in active_idx_mapping]
-                for bid, actions in zip(active_idx_mapping, prev_actions):
-                    for action in actions:
-                        if isinstance(action, ApplyRuleAction):
-                            prev_action_embeds.append(self.production_embed.weight[self.grammar.prod2id[action.production]])
-                        elif isinstance(action, SelectTableAction):
-                            prev_action_embeds.append(table2action[bid, action.table_id])
-                        elif isinstance(action, SelectColumnAction):
-                            prev_action_embeds.append(column2action[bid, action.column_id])
-                        elif isinstance(action, SelectValueAction):
-                            prev_action_embeds.append(value2action[bid, action.value_id])
-                        else: raise ValueError('Unrecognized action type!')
-                prev_action_embeds = torch.stack(prev_action_embeds, dim=0)
-                # parent production/field/type embeddings
-                prod_ids = torch.cat([beams[bid].get_parent_prod_ids() for bid in active_idx_mapping])
-                prod_embeds = self.production_embed(prod_ids)
-                field_ids = torch.cat([beams[bid].get_parent_field_ids() for bid in active_idx_mapping])
-                field_embeds = self.field_embed(field_ids)
-                type_ids = torch.cat([beams[bid].get_parent_type_ids() for bid in active_idx_mapping])
-                type_embeds = self.type_embed(type_ids)
-                # parent hidden states
-                parent_ts = torch.cat([beams[bid].get_parent_timesteps() for bid in active_idx_mapping])
-                parent_states = torch.gather(hyp_states, 1, parent_ts.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, hyp_states.size(-1))).squeeze(1)
-                inputs = [prev_action_embeds, prod_embeds, field_embeds, type_embeds, parent_states]
-                if args.context_feeding:
-                    inputs.append(context)
-                inputs = torch.cat(inputs, dim=-1)
-
-                select_index = [bid for bid in active_idx_mapping for _ in range(len(beams[bid].hyps))]
-                cur_encodings, cur_table_memory, cur_column_memory, cur_value_memory = encodings[select_index], \
-                    table_memory[select_index], column_memory[select_index], value_memory[select_index]
-                cur_mask, cur_table_mask, cur_column_mask, cur_value_mask = mask[select_index], table_mask[select_index], \
-                    column_mask[select_index], value_mask[select_index]
-                num_hyps = [len(beams[bid].hyps) for bid in active_idx_mapping]
-
-            # forward and calculate log_scores for each action
-            out, (h_t, c_t) = self.decoder_lstm(inputs.unsqueeze(1), h_c, start=(t==0), prev_ids=prev_ids)
-            out = out.squeeze(1)
-            if args.struct_feeding:
-                ext_feats = inputs[:, args.action_embed_size * 2: args.action_embed_size * 2 + self.ext_feat_dim]
-                query = torch.cat([out, ext_feats], dim=-1)
-            else: query = out
-            context, _ = self.context_attn(cur_encodings, query, cur_mask)
-            att_vec = self.att_vec_linear(torch.cat([out, context], dim=-1))
-            if args.struct_feeding:
-                att_vec = torch.cat([att_vec, ext_feats], dim=-1)
-            apply_rule_logprob = self.apply_rule(att_vec, self.production_embed.weight)
-            ar_score = torch.split(apply_rule_logprob, num_hyps)
-            _, select_table_prob = self.select_table(cur_table_memory, att_vec, cur_table_mask)
-            st_score = torch.split(torch.log(select_table_prob + 1e-32), num_hyps)
-            _, select_column_prob = self.select_column(cur_column_memory, att_vec, cur_column_mask)
-            sc_score = torch.split(torch.log(select_column_prob + 1e-32), num_hyps)
-            _, select_value_prob = self.select_value(cur_value_memory, att_vec, cur_value_mask)
-            sv_score = torch.split(torch.log(select_value_prob + 1e-32), num_hyps)
-
-            # rank and select based on AST type constraints
-            active, cum_num_hyps, live_hyp_ids = [], np.cumsum([0] + num_hyps), []
-            for idx, bid in enumerate(active_idx_mapping):
-                beams[bid].advance(ar_score[idx], st_score[idx], sc_score[idx], sv_score[idx])
-                if not beams[bid].done:
-                    active.append(bid)
-                    live_hyp_ids.extend(beams[bid].get_previous_hyp_ids(cum_num_hyps[idx]))
-
-            if not active: # all beams are finished
-                break
-
-            # update each unfinished beam and record active h_c, hidden_states and context vector
-            active_idx_mapping = active
-            h_c = (h_t[:, live_hyp_ids], c_t[:, live_hyp_ids])
-            hyp_states = torch.cat([hyp_states[live_hyp_ids], h_c[0][-1].unsqueeze(1)], dim=1)
-            prev_ids = prev_ids[live_hyp_ids]
-            if args.context_feeding:
-                context = context[live_hyp_ids]
         completed_hyps = [b.sort_finished() for b in beams]
-        cum_func = torch.sum if cum_method == 'sum' else torch.mean
-        loss = - torch.sum(torch.stack([cum_func(torch.stack([hyp.score for hyp in b][:n_best])) for b in completed_hyps]))
-        return loss, completed_hyps
+        if gtl_training:
+            cum_func = torch.sum if cumulate_method == 'sum' else torch.mean
+            loss = - torch.sum(torch.stack([cum_func(torch.stack([hyp.score for hyp in b][:n_best])) for b in completed_hyps]))
+            return loss, completed_hyps
+        else:
+            return completed_hyps

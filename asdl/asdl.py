@@ -43,11 +43,17 @@ class ASDLGrammar(object):
         self.id2field = {i: field for i, field in enumerate(self.fields)}
 
         # OrderController is used to control the order of fields in each production
-        from asdl.controller import OrderController
+        from asdl.order_controller import OrderController
         self.order_controller = OrderController(self.prod2id, self.field2id)
 
     def __len__(self):
         return self.size
+
+    @property
+    def grammar_version(self):
+        res = re.search(r'[vV]_?([0-9]+)', self._grammar_name)
+        if res: return res.group(1)
+        return "1"
 
     @property
     def productions(self):
@@ -311,14 +317,11 @@ if __name__ == '__main__':
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     # print(ASDLCompositeType('1') == ASDLPrimitiveType('1'))
-    grammar = ASDLGrammar.from_filepath('asdl/sql_spider/spider_grammar.txt')
-    # grammar = ASDLGrammar.from_filepath('asdl/sql_spider/dusql_grammar.txt')
+    grammar = ASDLGrammar.from_filepath('asdl/spider/spider_grammar.txt')
+    # grammar = ASDLGrammar.from_filepath('asdl/spider/dusql_grammar.txt')
     print('\nNumber of rules:', len(grammar.productions))
-    for each in grammar.productions:
-        print(each)
+    for each in grammar.productions: print(each)
     print('\nNumber of types:', len(grammar.types))
-    for each in grammar.types:
-        print(each)
+    for each in grammar.types: print(each)
     print('\nNumber of fields:', len(grammar.fields))
-    for each in grammar.fields:
-        print(each)
+    for each in grammar.fields: print(each)

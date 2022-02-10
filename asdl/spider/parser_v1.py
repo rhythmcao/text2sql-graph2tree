@@ -157,7 +157,7 @@ class Parser():
         ctr_name = 'GroupByColumn' + ASDLConstructor.number2word[len(groupby_clause)] if not having_clause else \
             'GroupByHavingColumn' + ASDLConstructor.number2word[len(groupby_clause)]
         ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
-        groupby_fields = ast_node[self.grammar.get_field_by_text('col_id groupby_col_id')]
+        groupby_fields = ast_node[self.grammar.get_field_by_text('col_id col_id')]
         for idx, col_unit in enumerate(groupby_clause):
             groupby_fields[idx].add_value(int(col_unit[1]))
         if having_clause:

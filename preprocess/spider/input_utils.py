@@ -21,17 +21,17 @@ def quote_normalization(question):
     new_question = []
     for idx, tok in enumerate(question):
         if len(tok) > 2 and tok[0] in QUOTATION_MARKS and tok[-1] in QUOTATION_MARKS:
-            new_question += ["'", tok[1:-1], "'"]
+            new_question += ['"', tok[1:-1], '"']
         elif len(tok) > 2 and tok[0] in QUOTATION_MARKS:
-            new_question += ["'", tok[1:]]
+            new_question += ['"', tok[1:]]
         elif len(tok) > 2 and tok[-1] in QUOTATION_MARKS:
-            new_question += [tok[:-1], "'" ]
+            new_question += [tok[:-1], '"']
         elif tok in QUOTATION_MARKS:
-            new_question.append("'")
+            new_question.append('"')
         elif len(tok) == 2 and tok[0] in QUOTATION_MARKS:
             # special case: the length of entity value is 1
             if idx + 1 < len(question) and question[idx + 1] in QUOTATION_MARKS:
-                new_question += ["'", tok[1]]
+                new_question += ['"', tok[1]]
             else:
                 new_question.append(tok)
         else:
@@ -40,7 +40,7 @@ def quote_normalization(question):
 
 class InputProcessor():
 
-    def __init__(self, encode_method='rgatsql', db_dir='data/spider/database', db_content=True, bridge=True, **kargs):
+    def __init__(self, encode_method='lgesql', db_dir='data/spider/database', db_content=True, bridge=True, **kargs):
         super(InputProcessor, self).__init__()
         self.db_dir = db_dir
         self.db_content, self.bridge = db_content, bridge

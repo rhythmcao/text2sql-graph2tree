@@ -54,7 +54,29 @@ DATASETS = {
         'bridge': False,
         'value': True,
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('time', '时间'), ('number', '数值'), ('binary', '真假值'), ('others', '其它类型')]),
-    }
+    },
+    'cspider': {
+        'grammar': os.path.join('asdl', 'cspider', 'cspider_grammar.txt'),
+        'relation': RELATIONS[:-1],
+        'data': os.path.join('data', 'cspider'),
+        'database': os.path.join('data', 'cspider', 'database'),
+        'database_testsuite': os.path.join('data', 'cspider', 'database'),
+        'db_content': True,
+        'bridge': False,
+        'value': False,
+        'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
+    },
+    'cspider-raw': {
+        'grammar': os.path.join('asdl', 'cspider', 'cspider_grammar.txt'),
+        'relation': RELATIONS[:-1],
+        'data': os.path.join('data', 'cspider_raw'),
+        'database': os.path.join('data', 'cspider_raw', 'db_content.json'),
+        'database_testsuite': os.path.join('data', 'cspider_raw', 'db_content.json'),
+        'db_content': True,
+        'bridge': False,
+        'value': False,
+        'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
+    },
 }
 
 # Index for BIO Labels in value recognition:

@@ -52,7 +52,7 @@ NUMBER_REPLACEMENT = list(zip('０１２３４５６７８９％：．', '012345
 
 class InputProcessor():
 
-    def __init__(self, encode_method='rgatsql', db_dir='data/dusql/db_content.json', db_content=True, bridge=True, **kargs):
+    def __init__(self, encode_method='lgesql', db_dir='data/dusql/db_content.json', db_content=True, bridge=True, **kargs):
         super(InputProcessor, self).__init__()
         self.db_dir = db_dir
         self.db_content = db_content

@@ -8,6 +8,8 @@ def get_output_processor(dataset, table_path=None, db_dir=None):
         from preprocess.spider.output_utils import OutputProcessor
     elif dataset == 'dusql':
         from preprocess.dusql.output_utils import OutputProcessor
+    elif dataset == 'cspider':
+        from preprocess.cspider.output_utils import OutputProcessor
     elif dataset == 'wikisql':
         raise NotImplementedError
     elif dataset == 'nl2sql':

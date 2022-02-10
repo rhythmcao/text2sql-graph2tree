@@ -17,7 +17,7 @@ def is_word_number(w):
     except: return False
 
 def quote_normalization(question):
-    """ Normalize all usage of quotation marks into a separate \' """
+    """ Normalize all usage of quotation marks into a separate \" """
     new_question = []
     for idx, tok in enumerate(question):
         if len(tok) > 2 and tok[0] in QUOTATION_MARKS and tok[-1] in QUOTATION_MARKS:

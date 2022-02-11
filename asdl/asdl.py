@@ -42,10 +42,6 @@ class ASDLGrammar(object):
         self.id2type = {i: type for i, type in enumerate(self.types)}
         self.id2field = {i: field for i, field in enumerate(self.fields)}
 
-        # OrderController is used to control the order of fields in each production
-        from asdl.order_controller import OrderController
-        self.order_controller = OrderController(self.prod2id, self.field2id)
-
     def __len__(self):
         return self.size
 

@@ -28,6 +28,7 @@ ABBREV_SET = [
     set({'f', 'female', 'girl', 'woman', 'females', 'girls', 'women'}),
     set({'m', 'male', 'boy', 'man', 'males', 'boys', 'men'}),
     set({'italian', 'italy'}),
+    set({'polish', 'poland'}),
     set({'la', 'los angeles', 'louisiana'}),
     set({'comp. sci.', 'computer science'}),
     set({'assistant professors', 'assistant professor', 'asstprof'}),

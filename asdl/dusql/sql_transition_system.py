@@ -37,9 +37,9 @@ if __name__ == '__main__':
 
     data_dir = DATASETS['dusql']['data']
     table_path = os.path.join(data_dir, 'tables.json')
-    tables = json.load(open(table_path, 'r'))
-    train = pickle.load(open(os.path.join(data_dir, 'train.bin'), 'rb'))
-    dev = pickle.load(open(os.path.join(data_dir, 'dev.bin'), 'rb'))
+    tables = pickle.load(open(os.path.join(data_dir, 'tables.bin'), 'rb'))
+    train = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb'))
+    dev = pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
 
 
     def sql_to_ast_to_sql(dataset):
@@ -50,7 +50,7 @@ if __name__ == '__main__':
             recovered_sql, flag = trans.ast_to_surface_code(sql_ast, tables[ex['db_id']], ex['candidates'], ex)
             recovered_sqls.append(recovered_sql)
         return recovered_sqls
-    
+
 
     def evaluate_sqls(recovered_sqls, choice='train'):
         pred_path = os.path.join(data_dir, choice + '_pred.sql')

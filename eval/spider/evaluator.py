@@ -272,7 +272,7 @@ if __name__ == '__main__':
     checker = SurfaceChecker()
     train = json.load(open(os.path.join(data_dir, 'train.json'), 'r'))
     dev = json.load(open(os.path.join(data_dir, 'dev.json'), 'r'))
-    for idx, ex in enumerate(train):
+    for idx, ex in enumerate(train + dev):
         sql, db = ex['query'].strip(), ex['db_id']
         flag = checker.validity_check(sql, tables[db])
         if not flag:

@@ -36,11 +36,10 @@ if __name__ == '__main__':
     trans = SQLTransitionSystem(grammar)
 
     data_dir = DATASETS['spider']['data']
-    table_path = os.path.join(data_dir, 'tables.json')
-    kmaps = build_foreign_key_map_from_json(table_path)
-    tables = json.load(open(table_path, 'r'))
-    train = pickle.load(open(os.path.join(data_dir, 'train.bin'), 'rb'))
-    dev = pickle.load(open(os.path.join(data_dir, 'dev.bin'), 'rb'))
+    kmaps = build_foreign_key_map_from_json(os.path.join(data_dir, 'tables.json'))
+    tables = pickle.load(open(os.path.join(data_dir, 'tables.bin'), 'rb'))
+    train = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb'))
+    dev = pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
 
 
     def sql_to_ast_to_sql(dataset):
@@ -51,7 +50,7 @@ if __name__ == '__main__':
             recovered_sql, flag = trans.ast_to_surface_code(sql_ast, tables[ex['db_id']], ex['candidates'])
             recovered_sqls.append(recovered_sql)
         return recovered_sqls
-    
+
 
     def evaluate_sqls(recovered_sqls, choice='train', etype='exec'):
         pred_path = os.path.join(data_dir, choice + '_pred.sql')

@@ -307,17 +307,3 @@ class ASDLCompositeType(ASDLType):
 
 class ASDLPrimitiveType(ASDLType):
     pass
-
-
-if __name__ == '__main__':
-    import sys
-    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-    # print(ASDLCompositeType('1') == ASDLPrimitiveType('1'))
-    grammar = ASDLGrammar.from_filepath('asdl/spider/spider_grammar.txt')
-    # grammar = ASDLGrammar.from_filepath('asdl/spider/dusql_grammar.txt')
-    print('\nNumber of rules:', len(grammar.productions))
-    for each in grammar.productions: print(each)
-    print('\nNumber of types:', len(grammar.types))
-    for each in grammar.types: print(each)
-    print('\nNumber of fields:', len(grammar.fields))
-    for each in grammar.fields: print(each)

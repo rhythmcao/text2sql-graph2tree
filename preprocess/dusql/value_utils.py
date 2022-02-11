@@ -1143,8 +1143,8 @@ if __name__ == '__main__':
     db_dir = DATASETS['dusql']['database']
     processor = ValueProcessor(table_path=table_path, db_dir=db_dir)
 
-    dataset = pickle.load(open(os.path.join(data_dir, 'train.bin'), 'rb'))
-    # dataset = pickle.load(open(os.path.join(data_dir, 'dev.bin'), 'rb'))
+    dataset = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb'))
+    # dataset = pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
 
     test_pairs = generate_test_pairs(dataset)
     ex_correct, count, correct = 0, 0, 0

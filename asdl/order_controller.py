@@ -205,12 +205,12 @@ class OrderController():
 
         if save_path is not None:
             with open(save_path, 'wb') as of:
-                pickle.save(canonical_ts_order, of)
+                pickle.dump(canonical_ts_order, of)
         return canonical_ts_order
 
 
     def print_canonical_ts_order(self, order_dict, entropy_dict):
-        print('\nCanonical generation order for each grammar rule:')
+        print('Canonical generation order for each grammar rule:')
         for prod in sorted(order_dict.keys(), key=lambda p: repr(p)):
             print(f'[Entropy:{entropy_dict[prod]:.4f}]: {repr(prod)} ==> ', ', '.join([repr(f) for f in order_dict[prod]]))
         return

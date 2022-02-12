@@ -61,7 +61,7 @@ if __name__ == '__main__':
         output_path = os.path.join(data_dir, choice + '_eval.log')
         with open(output_path, 'w') as of:
             sys.stdout, old_print = of, sys.stdout
-            evaluate(gold_path, pred_path, DATASETS['spider']['database'], etype, kmaps, False, False, False)
+            evaluate(gold_path, pred_path, DATASETS['spider']['database_testsuite'], etype, kmaps, False, False, False)
             sys.stdout = old_print
 
 

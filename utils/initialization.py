@@ -84,6 +84,8 @@ def initialization_wrapper(args):
         local_rank = int(os.environ['SLURM_LOCALID'])
         rank = int(os.environ['SLURM_PROCID'])
         world_size = int(os.environ['SLURM_NTASKS'])
+        port = '2' + os.environ['SLURM_JOBID'][-4:]
+        print('host address | local_rank | rank | world_size | port:', host_address, local_rank, rank, world_size, port)
         device = distributed_init(host_address, rank, local_rank, world_size, port='2' + os.environ['SLURM_JOBID'][-4:])
     else:
         local_rank, rank, world_size = 0, 0, 1

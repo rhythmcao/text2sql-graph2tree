@@ -15,12 +15,15 @@ def hyperparam_path(args, create=True):
 
 def hyperparam_path_text2sql(args):
     task = 'task_%s__encoder_%s__dataset_%s' % (args.task, args.encode_method, args.dataset)
-    
+
     # encoder params
     exp_path = ''
-    exp_path += 'gs_%s__nb_%s__ts_%s__uts_%s' % (args.gtl_size, args.n_best, args.ts_order, args.uts_order)
+    if args.ts_order == 'enum' or args.uts_order == 'enum':
+        exp_path += 'gs_%s__nb_%s__ts_%s__uts_%s' % (args.gtl_size, args.n_best, args.ts_order, args.uts_order)
+    else:
+        exp_path += 'ts_%s__uts_%s' % (args.ts_order, args.uts_order)
+    exp_path += '__emb_%s' % (args.embed_size) if args.plm is None else '__plm_%s' % (args.plm)
     # exp_path += '__view_%s' % (args.local_and_nonlocal)
-    exp_path += '__emb_%s' % (args.embed_size) if args.plm is None else 'plm_%s' % (args.plm)
     # exp_path += '__gnn_%s_x_%s' % (args.gnn_hidden_size, args.gnn_num_layers)
     # exp_path += '__sl' if args.relation_share_layers else ''
     # exp_path += '__hd_%s' % (args.num_heads)

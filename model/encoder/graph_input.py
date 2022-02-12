@@ -7,7 +7,7 @@ from transformers import AutoModel, AutoConfig
 
 class GraphInputLayer(nn.Module):
 
-    def __init__(self, embed_size, hidden_size, word_vocab, dropout=0.2, fix_grad_idx=60, schema_aggregation='head+tail'):
+    def __init__(self, embed_size, hidden_size, word_vocab, dropout=0.2, fix_grad_idx=100, schema_aggregation='head+tail'):
         super(GraphInputLayer, self).__init__()
         self.embed_size = embed_size
         self.hidden_size = hidden_size

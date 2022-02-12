@@ -61,9 +61,9 @@ class StructDecoder(nn.Module):
                 encodings: encoded representations and mask matrix from encoder, bsize x seqlen x gnn_hidden_size
                 value_memory: extracted values, bsize x max_value_num x gnn_hidden_size
                 batch: see utils.batch, we use fields
-                    batch.mask, batch.graph.value_nums, batch.examples, batch.get_frontier_prod_idx(t),
+                    batch.mask, batch.graph.value_nums, batch.tgt_actions, batch.get_frontier_prod_idx(t),
                     batch.get_frontier_field_idx(t), batch.get_frontier_field_type_idx(t),
-                    batch.max_action_num, example.tgt_action (ActionInfo)
+                    batch.max_action_num
             output:
                 loss: sum of loss for each training batch
         """
@@ -92,9 +92,9 @@ class StructDecoder(nn.Module):
                 x[:, offset: offset + args.lstm_hidden_size] = h0[-1]
             else:
                 prev_action_embed = []
-                for e_id, example in enumerate(batch.examples):
-                    if t < len(example.tgt_action):
-                        prev_action = example.tgt_action[t - 1].action
+                for e_id, tgt_action in enumerate(batch.tgt_actions):
+                    if t < len(tgt_action):
+                        prev_action = tgt_action[t - 1].action
                         if isinstance(prev_action, ApplyRuleAction):
                             prev_action_embed.append(self.production_embed.weight[self.grammar.prod2id[prev_action.production]])
                         elif isinstance(prev_action, SelectTableAction):
@@ -142,9 +142,9 @@ class StructDecoder(nn.Module):
             _, select_val_prob = self.select_value(value_memory, att_vec, val_mask)
             select_val_prob = torch.log(select_val_prob + 1e-32)
 
-            for e_id, example in enumerate(batch.examples):
-                if t < len(example.tgt_action):
-                    action_t = example.tgt_action[t].action
+            for e_id, tgt_action in enumerate(batch.tgt_actions):
+                if t < len(tgt_action):
+                    action_t = tgt_action[t].action
                     if isinstance(action_t, ApplyRuleAction):
                         logprob_t = apply_rule_logprob[e_id, self.grammar.prod2id[action_t.production]]
                     elif isinstance(action_t, SelectTableAction):

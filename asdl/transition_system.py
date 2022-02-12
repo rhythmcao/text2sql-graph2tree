@@ -96,13 +96,13 @@ class TransitionSystem(object):
         prod = asdl_ast.production
         parent_action = ApplyRuleAction(prod)
         output_pairs.append((asdl_ast.parent_field.field if asdl_ast.parent_field is not None else None, parent_action))
-        
+
         if len(prod.fields) > 1 and asdl_ast.field_order:
             ordered_fields = asdl_ast.field_order
         elif len(prod.fields) > 1:
             ordered_fields = self.order_controller[prod]
         else: ordered_fields = list(prod.fields.keys())
-        
+
         typed_idxs = np.arange(len(ordered_fields))
         if ts_random and len(ordered_fields) > 1:
             np.random.shuffle(typed_idxs)

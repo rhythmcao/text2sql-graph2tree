@@ -1,9 +1,8 @@
 #coding=utf8
-import sys, os, gc
+import sys, os, gc, torch
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.example import Example
 from utils.batch import Batch
-from model.model_constructor import *
 from torch.utils.data import DataLoader
 
 

@@ -71,8 +71,10 @@ class Example():
     def load_dataset(cls, choice='train', dataset=None):
         if dataset is None:
             assert choice in ['train', 'dev', 'test']
-            fp = os.path.join(cls.data_dir, choice + cls.encode_method + '.bin') if not DEBUG else \
-                os.path.join(cls.data_dir, 'train' + cls.encode_method + '.bin')
+            # fp = os.path.join(cls.data_dir, choice + '.' + cls.encode_method + '.bin') if not DEBUG else \
+                # os.path.join(cls.data_dir, 'train.' + cls.encode_method + '.bin')
+            fp = os.path.join(cls.data_dir, choice + '.lgesql.bin') if not DEBUG else \
+                os.path.join(cls.data_dir, 'train.lgesql.bin')
             dataset = pickle.load(open(fp, 'rb'))
         else: choice = 'test'
 
@@ -87,7 +89,7 @@ class Example():
             dataset = cls.order_controller.set_canonical_order_per_sample(dataset, ts_control=True, ts_shuffle=False, uts_shuffle=True)
             for ex in dataset: ex.canonical_action = get_action_infos(Example.trans.get_field_action_pairs(ex.ast, False, False))
         return dataset
-    
+
     @classmethod
     def use_database_testsuite(cls):
         if cls.evaluator is not None:

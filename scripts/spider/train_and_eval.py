@@ -66,13 +66,13 @@ if not args.testing:
     num_warmup_steps = int(num_training_steps * args.warmup_ratio)
     warmup_epoch = int(args.max_epoch * args.warmup_ratio)
     optimizer, scheduler = set_optimizer(base_model, args, num_warmup_steps, num_training_steps)
-    
+
     start_epoch, best_result = 0, { 'dev_acc': 0. }
     if args.read_model_path and args.load_optimizer:
         optimizer.load_state_dict(check_point['optim'])
         scheduler.load_state_dict(check_point['scheduler'])
         start_epoch = check_point['epoch'] + 1
-    logger.info(f'Total training steps: {num_training_steps:s};\t Warmup steps: {num_warmup_steps:s}')
+    logger.info(f'Total training steps: {num_training_steps:d};\t Warmup steps: {num_warmup_steps:d}')
     logger.info('Start training ......')
 
     for i in range(start_epoch, args.max_epoch):
@@ -131,8 +131,8 @@ if not args.testing:
                     'optim': optimizer.state_dict(),
                     'scheduler': scheduler.state_dict()
                 }, open(os.path.join(exp_path, 'model.bin'), 'wb'))
-                logger.info(f"NEW BEST MODEL: \tEpoch: {i:d}s\tDev sql exact set match/execution acc: {em:.4f}/{ex:.4f}")
-    
+                logger.info(f"NEW BEST MODEL: \tEpoch: {i:d}\tDev sql exact set match/execution acc: {em:.4f}/{ex:.4f}")
+
     if is_master:
         check_point = torch.load(open(os.path.join(exp_path, 'model.bin'), 'rb'), map_location=device)
         base_model.load_state_dict(check_point['model'])

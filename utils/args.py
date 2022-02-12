@@ -21,7 +21,7 @@ def add_argument_base(arg_parser):
     arg_parser.add_argument('--dataset', type=str, default='spider', choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider'])
     arg_parser.add_argument('--seed', default=999, type=int, help='Random seed')
     arg_parser.add_argument('--device', type=int, default=0, help='Use which device: -1 -> cpu ; the index of gpu o.w.')
-    arg_parser.add_argument('--ddp', type=str, help='use distributed data parallel training')
+    arg_parser.add_argument('--ddp', action='store_true', help='use distributed data parallel training')
     arg_parser.add_argument('--testing', action='store_true', help='training or evaluation mode')
     arg_parser.add_argument('--read_model_path', type=str, help='read pretrained model path')
     #### Training Hyperparams ####

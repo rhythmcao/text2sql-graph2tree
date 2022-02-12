@@ -366,11 +366,5 @@ class InputProcessor():
             if self.db_content:
                 print('Value match: (column name, col_id, cell name, question word, start id, end id)')
                 print(', '.join(column_matched_pairs['value']) if column_matched_pairs['value'] else 'empty')
-                print('Number match: (column name, col_id, cell name, question word, start id, end id)')
-                print(', '.join(column_matched_pairs['number']) if column_matched_pairs['number'] else 'empty')
-            if self.bridge:
-                pairs = [(db['column_names'][col_id][1], list(zip(*value_score_list))[0]) for col_id, value_score_list in candidate_cells.items()]
-                pairs = ['='.join([col, '|'.join(value_list)]) for col, value_list in pairs]
-                print('Candidate cells:', ', '.join(pairs) if pairs else 'empty')
             print('\n')
         return entry

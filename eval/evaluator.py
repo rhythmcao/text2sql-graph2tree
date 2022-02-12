@@ -99,6 +99,12 @@ class Evaluator():
         elif dataset == 'dusql':
             from eval.dusql.evaluator import DuSQLEvaluator
             return DuSQLEvaluator
+        elif dataset == 'cspider':
+            from eval.cspider.evaluator import CSpiderEvaluator
+            return CSpiderEvaluator
+        elif dataset == 'cspider-raw':
+            from eval.cspider_raw.evaluator import CSpiderRawEvaluator
+            return CSpiderRawEvaluator
         else:
             raise ValueError(f'[Error]: Unrecognized dataset "{dataset}" for evaluator')
 

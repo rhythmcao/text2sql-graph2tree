@@ -6,10 +6,10 @@ from eval.evaluation import Evaluator as Engine
 from eval.evaluator import Evaluator
 
 
-class DuSQLEvaluator(Evaluator):
+class CSpiderEvaluator(Evaluator):
 
     def __init__(self, *args, **kargs):
-        super(DuSQLEvaluator, self).__init__(*args, **kargs)
+        super(CSpiderEvaluator, self).__init__(*args, **kargs)
         self.engine = Engine()
         self.surface_checker = SurfaceChecker(self.schemas)
         self.exec_checker = ExecutionChecker()

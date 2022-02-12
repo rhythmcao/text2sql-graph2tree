@@ -299,6 +299,7 @@ class InputProcessor():
             print('Column matched: (column name, column id, question span, start id, end id)')
             print('Exact match:', ', '.join(column_matched_pairs['exact']) if column_matched_pairs['exact'] else 'empty')
             print('Partial match:', ', '.join(column_matched_pairs['partial']) if column_matched_pairs['partial'] else 'empty')
-            print('Value match:', ', '.join(column_matched_pairs['value']) if column_matched_pairs['value'] else 'empty', '\n')
-            print('Number match:', ', '.join(column_matched_pairs['number']) if column_matched_pairs['number'] else 'empty', '\n')
+            if self.db_content:
+                print('Value match:', ', '.join(column_matched_pairs['value']) if column_matched_pairs['value'] else 'empty')
+            print('\n')
         return entry

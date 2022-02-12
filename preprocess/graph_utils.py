@@ -7,7 +7,7 @@ from utils.constants import NONLOCAL_RELATIONS
 
 class GraphProcessor():
 
-    def __init__(self, encode_method='rgatsql') -> None:
+    def __init__(self, encode_method='lgesql') -> None:
         super(GraphProcessor, self).__init__()
         self.encode_method = encode_method
         self.process_method = eval('self.process_' + encode_method)

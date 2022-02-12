@@ -18,7 +18,7 @@ def init_args(params=sys.argv[1:]):
 def add_argument_base(arg_parser):
     #### General configuration ####
     arg_parser.add_argument('--task', default='text2sql', help='task name')
-    arg_parser.add_argument('--dataset', type=str, default='spider', choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider'])
+    arg_parser.add_argument('--dataset', type=str, default='spider', choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider', 'cspider-raw'])
     arg_parser.add_argument('--seed', default=999, type=int, help='Random seed')
     arg_parser.add_argument('--device', type=int, default=0, help='Use which device: -1 -> cpu ; the index of gpu o.w.')
     arg_parser.add_argument('--ddp', action='store_true', help='use distributed data parallel training')
@@ -44,10 +44,7 @@ def add_argument_encoder(arg_parser):
     arg_parser.add_argument('--encode_method', choices=['irnet', 'rgatsql', 'lgesql'], default='lgesql', help='which text2sql encoder to use')
     arg_parser.add_argument('--local_and_nonlocal', choices=['mmc', 'msde', 'local', 'global'], default='mmc', 
         help='how to integrate local and non-local relations: mmc -> multi-head multi-view concatenation ; msde -> mixed static and dynamic embeddings')
-    arg_parser.add_argument('--plm', type=str, choices=['bert-base-uncased', 'bert-large-uncased', 'bert-large-uncased-whole-word-masking',
-        'roberta-base', 'roberta-large', 'grappa_large_jnt', 'electra-base-discriminator', 'electra-large-discriminator',
-        'chinese-bert-wwm-ext', 'chinese-electra-180g-base-discriminator', 'chinese-electra-180g-large-discriminator', 'chinese-macbert-base',
-        'chinese-macbert-large', 'chinese-roberta-wwm-ext', 'chinese-roberta-wwm-ext-large'], help='pretrained model name')
+    arg_parser.add_argument('--plm', type=str, help='pretrained model name in Huggingface')
     arg_parser.add_argument('--subword_aggregation', choices=['mean-pooling', 'max-pooling', 'attentive-pooling'], default='attentive-pooling', help='aggregate subword feats from PLM')
     arg_parser.add_argument('--schema_aggregation', choices=['mean-pooling', 'max-pooling', 'attentive-pooling', 'head+tail'], default='head+tail', help='aggregate schema words feats')
     arg_parser.add_argument('--value_aggregation', choices=['mean-pooling', 'max-pooling', 'attentive-pooling'], default='attentive-pooling', help='aggregate value word feats')

@@ -47,7 +47,7 @@ class Example():
         cls.grammar = ASDLGrammar.from_filepath(DATASETS[cls.dataset]['grammar'])
         cls.trans = TransitionSystem.get_class_by_dataset(cls.dataset)(cls.grammar, cls.tables, cls.db_dir)
         cls.order_controller = cls.trans.order_controller
-        cls.evaluator = Evaluator.get_class_by_dataset(cls.dataset)(cls.trans, table_path, cls.db_dir) if not TEST else None
+        cls.evaluator = Evaluator.get_class_by_dataset(cls.dataset)(cls.trans, table_path, cls.db_dir)
 
         if ts_order_path is not None and os.path.exists(ts_order_path):
             cls.order_controller.load_and_set_ts_order(ts_order_path)

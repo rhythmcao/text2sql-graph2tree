@@ -20,7 +20,9 @@ def get_input_processor(**kargs):
     else:
         raise ValueError('Not recognized dataset name %s' % (dataset))
     encode_method = kargs.pop('encode_method', 'lgesql')
-    db_dir, db_content, bridge = DATASETS[dataset]['database'], DATASETS[dataset]['db_content'], DATASETS[dataset]['bridge']
+    db_dir = kargs.pop('db_dir', DATASETS[dataset]['database'])
+    db_content = kargs.pop('db_content', DATASETS[dataset]['db_content'])
+    bridge = kargs.pop('bridge', DATASETS[dataset]['bridge'])
     input_processor = InputProcessor(encode_method=encode_method, db_dir=db_dir, db_content=db_content, bridge=bridge)
     return input_processor
 

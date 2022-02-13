@@ -151,6 +151,9 @@ if is_master:
         start_time = time.time()
         gather_ts_order_from_dataset(base_model, controller, train_dataset, os.path.join(exp_path, 'order.bin'), batch_size=args.test_batch_size, beam_size=args.beam_size, device=device)
         logger.info(f"Typed set order accumulation costs {time.time() - start_time:.2f}s")
+    elif not os.path.exists(os.path.join(exp_path, 'order.bin')):
+        controller.save_canonical_ts_order(save_path=os.path.join(exp_path, 'order.bin'))
+
     logger.info("Start evaluating with controller method using testsuite database ......")
     start_time = time.time()
     results = decode(base_model, evaluator, dev_dataset, os.path.join(exp_path, 'dev.eval.controller'), batch_size=args.test_batch_size, beam_size=args.beam_size, ts_order='controller', acc_type='eg-sql', etype='all', device=device)

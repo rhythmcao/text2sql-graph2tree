@@ -200,8 +200,7 @@ class OrderController():
             self.print_canonical_ts_order(canonical_ts_order, ts_order_entropy)
 
         if save_path is not None:
-            with open(save_path, 'wb') as of:
-                pickle.dump(canonical_ts_order, of)
+            self.save_canonical_ts_order(canonical_ts_order, save_path)
         return canonical_ts_order
 
 
@@ -212,9 +211,19 @@ class OrderController():
         return
 
 
+    def save_canonical_ts_order(self, ts_order=None, save_path=None):
+        with open(save_path, 'wb') as of:
+            if ts_order is not None:
+                pickle.dump(ts_order, of)
+            else:
+                pickle.dump(self.prod2fields, of)
+        return
+
+
     def save_order_history(self, save_path):
         with open(save_path, 'wb') as of:
             pickle.dump(self.history, of)
+        return
 
 
     def record_canonical_actions(self, hyps_list, ids):

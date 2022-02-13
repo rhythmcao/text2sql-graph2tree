@@ -115,7 +115,7 @@ class Evaluator():
             fscore: dataset-level metric, compare value indexes and accumulate error items
             acc: instance-level metric, one sample is true if and only if
                 all predicted value indexes are correct and complete compared to the golden indexes set
-            acc-recall: instance-level metric, we pay more attention to recall and ignore precision, 
+            acc-recall: instance-level metric, we pay more attention to recall and ignore precision,
                 one sample is true as long as no index pair in golden labels is missing
         """
         pred = [[val.matched_index for val in candidates] for candidates in vals]
@@ -156,14 +156,14 @@ class Evaluator():
             fscore: dataset-level metric, compare each schema item and accumulate error items
             acc: instance-level metric, one sample is true if and only if
                 labels for all schema items are correct compared to the golden labels
-            acc-recall: instance-level metric, we pay more attention to recall and ignore precision, 
+            acc-recall: instance-level metric, we pay more attention to recall and ignore precision,
                 one sample is true as long as all True schema items in golden labels are distinguished
         """
         gold = [ex.graph.schema_label for ex in dataset]
         num = [ex.size(0) for ex in gold]
         pred = torch.cat(gates, dim=0) # first concatenate all batches
         pred = pred.split(num) # then split into instances
-        
+
         tp, fp_fn, correct, full_recall = 0, 0, 0, 0
         for p, g in zip(pred, gold):
             if torch.equal(p, g):
@@ -241,7 +241,7 @@ class Evaluator():
             pred_sql = self.obtain_sql(hyp, dbs[idx], values[idx], dataset[idx].ex, checker=checker)
             pred_sqls.append(pred_sql)
         result = self.evaluate_with_official_interface(pred_sqls, ref_sqls, dbs, dataset, output_path, etype)
-        
+
         if etype == 'match':
             return float(result['exact'])
         elif etype == 'exec':
@@ -261,7 +261,7 @@ class Evaluator():
 
     def evaluate_with_official_interface(self, *args, **kargs):
         raise NotImplementedError
-    
+
 
     def evaluate_with_adaptive_interface(self, *args, **kargs):
         raise NotImplementedError

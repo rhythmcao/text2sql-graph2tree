@@ -8,8 +8,8 @@ read_ts_order_path=''
 read_canonical_action_path=''
 
 plm=chinese-macbert-base
-encode_method=lgesql # irnet, rgatsql, lgesql
-local_and_nonlocal=msde # mmc, msde, local, global
+encode_method=rgatsql # irnet, rgatsql, lgesql
+local_and_nonlocal=global # mmc, msde, local, global
 gnn_hidden_size=512
 gnn_num_layers=8
 num_heads=8
@@ -50,8 +50,8 @@ beam_size=5
 
 gtl_size=4
 n_best=1
-ts_order=random
-uts_order=enum
+ts_order=controller
+uts_order=controller
 
 python -u scripts/spider/train_and_eval.py --task $task --dataset 'dusql' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
     --plm $plm --encode_method $encode_method --local_and_nonlocal $local_and_nonlocal --gnn_hidden_size $gnn_hidden_size --gnn_num_layers $gnn_num_layers --num_heads $num_heads \

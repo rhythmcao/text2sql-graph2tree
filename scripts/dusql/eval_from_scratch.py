@@ -1,72 +1,57 @@
 #coding=utf8
-import sys, os, json, pickle, argparse, time, torch
+import sys, os, json, argparse, time, torch
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from argparse import Namespace
-import numpy as np
-from utils.constants import DEBUG
-from utils.dusql.example import Example
-from utils.dusql.batch import Batch
+from torch.utils.data import DataLoader
+from utils.initialization import set_torce_device
+from utils.constants import DEBUG, DATASETS
+from utils.example import Example
+from utils.batch import Batch
 from model.model_utils import Registrable
 from model.model_constructor import *
 
-def load_test_dataset(dataset, tables, order_seed=1024, shuffle=False):
-    state = np.random.get_state()
-    np.random.seed(order_seed)
-    if shuffle:
-        Example.grammar.order_controller.shuffle_order()
-    raw_dataset = pickle.load(open(dataset, 'rb'))
-    dataset = [Example(ex, tables[ex['db_id']]) for ex in raw_dataset]
-    np.random.set_state(state)
-    return dataset
-
 parser = argparse.ArgumentParser()
-parser.add_argument('--db_dir', default='data/dusql/db_content.json', help='path to db content file')
-parser.add_argument('--raw_table_path', default='data/dusql/tables.json', help='path to raw table json file')
-parser.add_argument('--table_path', default='data/dusql/tables.bin', help='path to tables file')
-parser.add_argument('--dataset_path', default='data/dusql/test.bin', help='path to dataset file')
-parser.add_argument('--saved_model', default='saved_models/chinese-macbert-base', help='path to saved model path, at least contain param.json and model.bin')
-parser.add_argument('--output_path', default='saved_models/chinese-macbert-base/predicted_sql.txt', help='output predicted sql file')
+parser.add_argument('--read_model_path', type=str, required=True, help='path to saved model, at least containing model.bin, params.json, order.bin')
+parser.add_argument('--output_file', default='dusql.sql', help='output predicted sql file')
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
-parser.add_argument('--use_gpu', action='store_true', help='whether use gpu')
+parser.add_argument('--ts_order', choices=['controller', 'enum'], default='controller', help='input node selection method')
+parser.add_argument('--deviceId', type=int, default=0, help='-1 -> CPU ; GPU index o.w.')
 args = parser.parse_args(sys.argv[1:])
 
 assert not DEBUG
-params = json.load(open(os.path.join(args.saved_model, 'params.json'), 'r'), object_hook=lambda d: Namespace(**d))
+# load model params
+params = json.load(open(os.path.join(args.read_model_path, 'params.json'), 'r'), object_hook=lambda d: Namespace(**d))
 params.lazy_load = True # load PLM from AutoConfig instead of AutoModel.from_pretrained(...)
-# order_path = params.read_order_path if hasattr(params, 'read_order_path') else None
-Example.configuration(plm=params.plm, method=params.model, raw_table_path=args.raw_table_path, table_path=args.table_path, db_dir=args.db_dir, order_path=args.saved_model)
-dataset = load_test_dataset(args.dataset_path, Example.tables, order_seed=params.order_seed, shuffle=False)
-
-device = torch.device("cuda:0") if torch.cuda.is_available() and args.use_gpu else torch.device("cpu")
+# Example configuration
+Example.configuration('dusql', plm=params.plm, encode_method=params.encode_method, ts_order_path=os.path.join(args.read_model_path, 'order.bin'))
+# load test dataset
+dataset = Example.load_dataset('test')
+dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=Example.collate_fn)
+# set torch device
+device = set_torch_device(args.deviceId)
+# model init
 model = Registrable.by_name('text2sql')(params, Example.trans).to(device)
-check_point = torch.load(open(os.path.join(args.saved_model, 'model.bin'), 'rb'), map_location=device)
-if list(check_point['model'].keys())[0].startswith('module.'):
-    # remove unnecessary module prefix for parameter loading
-    param_dict = {}
-    for k in check_point['model']:
-        v = check_point['model'][k]
-        k = k[len('module.'):]
-        param_dict[k] = v
-    model.load_state_dict(param_dict)
-else:
-    model.load_state_dict(check_point['model'])
+check_point = torch.load(open(os.path.join(args.read_model_path, 'model.bin'), 'rb'), map_location=device)
+model.load_state_dict(check_point['model'])
 
-start_time = time.time()
-print('Start evaluating ...')
 model.eval()
+start_time = time.time()
+print(f'Start evaluating with {args.ts_order} method ...')
 all_hyps, all_vals = [], []
 with torch.no_grad():
-    for i in range(0, len(dataset), args.batch_size):
-        current_batch = Batch.from_example_list(dataset[i: i + args.batch_size], device, train=False)
-        hyps, vals, _ = model.parse(current_batch, args.beam_size, order_method='controller')
+    for cur_batch in dataloader:
+        cur_batch = Batch.from_example_list(cur_batch, device, train=False)
+        hyps, vals, _ = model.parse(cur_batch, args.beam_size, ts_order=args.ts_order)
         all_hyps.extend(hyps)
         all_vals.extend(vals)
 
-print('Start writing predicted sqls to file %s' % (args.output_path))
-with open(args.output_path, 'w', encoding='utf8') as of:
+output_path = os.path.join(args.read_model_path, args.output_file)
+print('Start writing predicted sqls to file %s' % (output_path))
+with open(output_path, 'w', encoding='utf8') as of:
     evaluator = Example.evaluator
     for idx in range(len(dataset)):
+        # execution-guided unparsing
         pred_sql = evaluator.obtain_sql(all_hyps[idx], dataset[idx].db, all_vals[idx], dataset[idx].ex, checker=True)
         of.write(dataset[idx].ex['question_id'] + '\t' + pred_sql + '\n')
 print('Evaluation costs %.4fs .' % (time.time() - start_time))

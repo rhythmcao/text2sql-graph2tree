@@ -99,7 +99,7 @@ def from_example_list_encoder(ex_list, device='cpu', train=True, **kwargs):
             if oov_flag.any().item():
                 batch.column_unk_mask = column_unk_mask.masked_scatter_(torch.clone(column_unk_mask), oov_flag).to(device)
                 batch.column_unk_embeddings = torch.tensor([e for e in unk_word_embeddings if e is not None], dtype=torch.float, device=device)
-    
+
     batch.graph = Example.graph_factory.batch_graphs(ex_list, device, train=train, **kwargs)
     batch.predict_value = Example.predict_value
     if not batch.predict_value:

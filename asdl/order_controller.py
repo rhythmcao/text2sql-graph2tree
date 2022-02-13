@@ -53,11 +53,9 @@ class OrderController():
                 elif ts_shuffle:
                     np.random.shuffle(ast.field_order)
 
-            for field in ast.field_tracker:
-                if not ast.field_tracker[field]: # initialize order for untyped set
-                    ast.field_tracker[field] = list(range(len(ast[field])))
-                if len(ast.field_tracker[field]) > 1 and uts_shuffle:
-                    np.random.shuffle(ast.field_tracker[field])
+            for field in ast.fields:
+                if uts_shuffle and len(ast[field]) > 1:
+                    np.random.shuffle(ast[field])
 
                 if isinstance(field.type, ASDLCompositeType): # dive into sub-trees
                     for realized_field in ast[field]:
@@ -78,7 +76,7 @@ class OrderController():
             return list(frontier_node.fields.keys())
 
         valid_fields = []
-        for field in frontier_node.field_tracker:
+        for field in frontier_node.fields:
             if 0 < len(frontier_node.field_tracker[field]) < len(frontier_node[field]):
                 # hierarchically, process this Field first, then switch to other Field objs
                 return [field]
@@ -108,9 +106,7 @@ class OrderController():
         if len(hyp.golden_ptr[field]) == 1: # only one choice
             return [0]
         already_gen_fields = hyp.frontier_node.field_tracker[field]
-        all_field_ids = range(len(hyp.frontier_node[field])) if not hyp.golden_ptr.field_tracker[field] \
-            else hyp.golden_ptr.field_tracker[field]
-        remaining_ids = [idx for idx in all_field_ids if idx not in already_gen_fields]
+        remaining_ids = [idx for idx in range(len(hyp.frontier_node[field])) if idx not in already_gen_fields]
         if uts_order == 'enum':
             return remaining_ids
         elif uts_order == 'controller':
@@ -146,7 +142,7 @@ class OrderController():
 
 
     def record_ast_generation_order(self, hyps_list, ids, epoch: int = 0):
-        """ Record the generation order for each training sample during training        
+        """ Record the generation order for each training sample during training
         """
         if not hyps_list: return
 

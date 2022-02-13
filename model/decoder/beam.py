@@ -7,7 +7,7 @@ from asdl.transition_system import ApplyRuleAction, SelectColumnAction, SelectTa
 class Beam():
     """ Maintain a beam of hypothesis during decoding for each example
     """
-    def __init__(self, size: Tuple[int, int, int], trans: TransitionSystem, beam_size: int = 5, ts_order: str = 'random', device: torch.device = None, **kwargs) -> None:
+    def __init__(self, size: Tuple[int, int, int], trans: TransitionSystem, beam_size: int = 5, ts_order: str = 'enum', device: torch.device = None, **kwargs) -> None:
         assert beam_size >= 1
         self.trans, self.grammar, self.order_controller = trans, trans.grammar, trans.order_controller
         self.table_num, self.column_num, self.value_num = size

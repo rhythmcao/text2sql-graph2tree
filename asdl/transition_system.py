@@ -109,13 +109,11 @@ class TransitionSystem(object):
         for idx in typed_idxs:
             field = ordered_fields[idx]
             fields_list = asdl_ast[field]
-            ordered_idxs = asdl_ast.field_tracker[field] if asdl_ast.field_tracker[field] else np.arange(len(fields_list))
             untyped_idxs = np.arange(len(fields_list))
             if uts_random and len(fields_list) > 1:
                 np.random.shuffle(untyped_idxs)
             for jdx in untyped_idxs:
-                field_id = ordered_idxs[jdx]
-                real_field = fields_list[field_id]
+                real_field = fields_list[jdx]
                 # is a composite field
                 if self.grammar.is_composite_type(real_field.type):
                     field_actions = self.get_field_action_pairs(real_field.value, ts_random, uts_random)

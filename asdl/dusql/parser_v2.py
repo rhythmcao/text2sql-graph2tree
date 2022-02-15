@@ -85,7 +85,7 @@ class Parser():
         from_field.add_value(self.parse_from(sql['from'], sql_values, track))
         if sql['where']:
             where_field = ast_node[self.grammar.get_field_by_text('condition where')][0]
-            where_field.add_value(self.parse_condition(sql['where'], sql_values, track=track + '->where', int_as_column=False))
+            where_field.add_value(self.parse_condition(sql['where'], sql_values, track=track + '->where'))
         if sql['groupBy']:
             groupby_field = ast_node[self.grammar.get_field_by_text('groupby groupby')][0]
             groupby_field.add_value(self.parse_groupby(sql['groupBy'], sql['having'], sql_values, track))
@@ -175,7 +175,7 @@ class Parser():
         groupby_field.add_value(int(groupby_clause[0][1]) + 1)
         if having_clause:
             having_field = ast_node[self.grammar.get_field_by_text('condition having')][0]
-            having_field.add_value(self.parse_condition(having_clause, sql_values, track=track + '->having', int_as_column=False))
+            having_field.add_value(self.parse_condition(having_clause, sql_values, track=track + '->having'))
         return ast_node
 
     def parse_orderby(self, orderby_clause: list, limit: int, sql_values: set, track: str):
@@ -196,7 +196,7 @@ class Parser():
                 raise ValueError('Unable to find LIMIT %s in extracted values' % (limit))
         return ast_node
 
-    def parse_condition(self, condition: list, sql_values: set, track: str, int_as_column: bool = False):
+    def parse_condition(self, condition: list, sql_values: set, track: str):
         if len(condition) > 1:
             ctr_name = 'OrConditionTwo' if condition[1] == 'or' else 'AndConditionTwo'
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(ctr_name))
@@ -204,13 +204,13 @@ class Parser():
             idx = 0
             for cond in condition:
                 if cond in ['and', 'or']: continue
-                condition_fields[idx].add_value(self.parse_cond(cond, sql_values, track, int_as_column))
+                condition_fields[idx].add_value(self.parse_cond(cond, sql_values, track))
                 idx += 1
         else:
-            ast_node = self.parse_cond(condition[0], sql_values, track, int_as_column)
+            ast_node = self.parse_cond(condition[0], sql_values, track)
         return ast_node
 
-    def parse_cond(self, cond: list, sql_values: set, track: str, int_as_column: bool = False):
+    def parse_cond(self, cond: list, sql_values: set, track: str):
         agg_op, cmp_op, val_unit, val1, _ = cond
         unit_op, col_id = val_unit[0], val_unit[1][1]
         ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('CmpCondition'))
@@ -220,18 +220,14 @@ class Parser():
         col_node = self.parse_col_unit(self.convert_agg_val_unit(agg_op, val_unit))
         ast_node[self.grammar.get_field_by_text('col_unit col_unit')][0].add_value(col_node)
         state = State(track, AGG_OP[agg_op], CMP_OP[cmp_op], UNIT_OP[unit_op], col_id)
-        value_node = self.parse_value(val1, sql_values, track, state, int_as_column)
+        value_node = self.parse_value(val1, sql_values, track, state)
         ast_node[self.grammar.get_field_by_text('value value')][0].add_value(value_node)
         return ast_node
 
-    def parse_value(self, val, sql_values, track, state, int_as_column):
+    def parse_value(self, val, sql_values, track, state):
         if type(val) == dict: # nested sql
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('SQLValue'))
             ast_node[self.grammar.get_field_by_text('sql value_sql')][0].add_value(self.parse_sql(val, sql_values, track))
-        elif type(val) == int and int_as_column: # column
-            ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('ColumnValue'))
-            col_id = 1 + int(val)
-            ast_node[self.grammar.get_field_by_text('col_id col_id')][0].add_value(col_id)
         else: # literal value
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('LiteralValue'))
             sql_value = SQLValue(str(val), state)

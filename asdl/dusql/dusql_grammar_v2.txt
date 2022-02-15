@@ -83,7 +83,7 @@ condition = AndCondition[condition condition:2,2](condition condition)
 
 cmp_op = Equal | NotEqual | GreaterThan | GreaterEqual | LessThan | LessEqual | Like | In | NotIn
 
-value = SQLValue(sql value_sql) | LiteralValue(val_id val_id) | ColumnValue(col_id col_id)
+value = SQLValue(sql value_sql) | LiteralValue(val_id val_id)
 
 col_unit = UnaryColumnUnit(agg_op agg_op, col_id col_id)
         | BinaryColumnUnit(agg_op agg_op, unit_op unit_op, col_id left_col_id, col_id right_col_id)

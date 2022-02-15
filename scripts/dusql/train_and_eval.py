@@ -2,6 +2,7 @@
 import sys, os, time, json, gc
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from argparse import Namespace
+from contextlib import nullcontext
 from utils.args import init_args
 from utils.initialization import initialization_wrapper
 from utils.example import Example
@@ -72,6 +73,7 @@ if not args.testing:
         optimizer.load_state_dict(check_point['optim'])
         scheduler.load_state_dict(check_point['scheduler'])
         start_epoch = check_point['epoch'] + 1
+        best_result = check_point['result']
     logger.info(f'Total training steps: {num_training_steps:d};\t Warmup steps: {num_warmup_steps:d}')
     logger.info('Start training ......')
 
@@ -86,25 +88,18 @@ if not args.testing:
             sample_size = 0 if i < warmup_epoch else 1 + args.beam_size * (i - warmup_epoch) // (args.max_epoch - warmup_epoch)
             current_batch = Batch.from_example_list(cur_dataset, device, train=True, ts_order=args.ts_order, uts_order=args.uts_order, smoothing=args.smoothing)
 
-            if count == args.grad_accumulate or j == last_iter:
+            update_flag = count == args.grad_accumulate or j == last_iter
+            cntx = model.no_sync() if args.ddp and not update_flag else nullcontext()
+            with cntx:
                 outputs = model(current_batch, sample_size=sample_size, gtl_size=args.gtl_size, n_best=args.n_best, ts_order=args.ts_order, uts_order=args.uts_order)
                 loss = outputs['ast_loss'] + outputs['vr_loss'] + outputs['gp_loss']
                 (world_size * loss).backward() # reduction=sum
-                base_model.pad_embedding_grad_zero()
-                optimizer.step()
-                scheduler.step()
-                optimizer.zero_grad()
-                count = 0
-            else:
-                if args.ddp:
-                    with model.no_sync(): # save communication time
-                        outputs = model(current_batch, sample_size=sample_size, gtl_size=args.gtl_size, n_best=args.n_best, ts_order=args.ts_order, uts_order=args.uts_order)
-                        loss = outputs['ast_loss'] + outputs['vr_loss'] + outputs['gp_loss']
-                        (world_size * loss).backward() # reduction=sum
-                else:
-                    outputs = model(current_batch, sample_size=sample_size, gtl_size=args.gtl_size, n_best=args.n_best, ts_order=args.ts_order, uts_order=args.uts_order)
-                    loss = outputs['ast_loss'] + outputs['vr_loss'] + outputs['gp_loss']
-                    (world_size * loss).backward() # reduction=sum
+                if update_flag:
+                    base_model.pad_embedding_grad_zero()
+                    optimizer.step()
+                    scheduler.step()
+                    optimizer.zero_grad()
+                    count = 0
 
             epoch_loss['ast_loss'] += outputs['ast_loss'].item()
             epoch_loss['vr_loss'] += outputs['vr_loss'].item()
@@ -116,6 +111,13 @@ if not args.testing:
             (i, time.time() - start_time, epoch_loss['ast_loss'], epoch_loss['vr_loss'], epoch_loss['gp_loss']))
 
         if i < args.eval_after_epoch: # avoid unnecessary evaluation
+            if (i + 1) % 20 == 0 and best_result['dev_acc'] < 0. + 1e-4:
+                torch.save({
+                    'epoch': i, 'model': base_model.state_dict(),
+                    'optim': optimizer.state_dict(),
+                    'scheduler': scheduler.state_dict(),
+                    'result': best_result
+                }, open(os.path.join(exp_path, 'model.bin'), 'wb'))
             continue
 
         if is_master: # only evaluate on the master GPU
@@ -124,11 +126,12 @@ if not args.testing:
             dev_acc = (em + ex) / 2.0 if Example.dataset == 'spider' else em if Example.dataset == 'cspider' else ex
             logger.info(f"Evaluation: \tEpoch: {i:d}\tTime: {time.time() - start_time:.2f}s\tDev sql exact set match/execution acc: {em:.4f}/{ex:.4f}")
             if dev_acc >= best_result['dev_acc']:
-                best_result['dev_acc'], best_result['iter'] = dev_acc, i
+                best_result['dev_acc'] = dev_acc
                 torch.save({
                     'epoch': i, 'model': base_model.state_dict(),
                     'optim': optimizer.state_dict(),
-                    'scheduler': scheduler.state_dict()
+                    'scheduler': scheduler.state_dict(),
+                    'result': best_result
                 }, open(os.path.join(exp_path, 'model.bin'), 'wb'))
                 logger.info(f"NEW BEST MODEL: \tEpoch: {i:d}\tDev sql exact set match/execution acc: {em:.4f}/{ex:.4f}")
 

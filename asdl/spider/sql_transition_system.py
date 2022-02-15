@@ -47,7 +47,7 @@ if __name__ == '__main__':
         for ex in dataset:
             sql_ast = trans.surface_code_to_ast(ex['sql'], ex['values'])
             sql_ast.sanity_check()
-            recovered_sql, flag = trans.ast_to_surface_code(sql_ast, tables[ex['db_id']], ex['candidates'])
+            recovered_sql, flag = trans.ast_to_surface_code(sql_ast, tables[ex['db_id']], ex['candidates'], ex)
             recovered_sqls.append(recovered_sql)
         return recovered_sqls
 

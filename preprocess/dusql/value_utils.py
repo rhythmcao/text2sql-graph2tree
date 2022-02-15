@@ -133,7 +133,8 @@ class ValueProcessor():
             db = self.tables[db_id]
             if 'cells' in db:
                 self.contents[db_id] = db['cells']
-            self.contents[db_id] = extract_db_cells(contents, db)
+            else:
+                self.contents[db_id] = extract_db_cells(contents, db)
         return self.contents
 
     def postprocess_value(self, value_id, value_candidates, db, state, entry):
@@ -147,6 +148,9 @@ class ValueProcessor():
         """
         raw_value = SelectValueAction.reserved_dusql.id2word[value_id] if value_id < SelectValueAction.size('dusql') else \
             value_candidates[value_id - SelectValueAction.size('dusql')].matched_cased_value
+        # chinese chars do not have whitespace, while whitespace is needed between english words
+        # when ValueCandidate is constructed in models/encoder/auxiliary.py, whitespaces are inserted in matched_value
+        raw_value = re.sub(r'([^a-zA-Z])(\s+)([^a-zA-Z])', lambda match_obj: match_obj.group(1) + match_obj.group(3), raw_value)
         value = self.obtain_possible_value(raw_value, db, state, entry)
         return value
 

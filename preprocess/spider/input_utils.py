@@ -1,5 +1,6 @@
 #coding=utf8
 import os, sys, sqlite3
+import string
 import numpy as np
 import stanza
 import word2number as w2n
@@ -7,7 +8,7 @@ from nltk.corpus import stopwords
 from itertools import product, combinations
 from utils.constants import MAX_RELATIVE_DIST
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import is_number, QUOTATION_MARKS
+from preprocess.process_utils import is_number, quote_normalization
 from preprocess.spider.bridge_content_encoder import get_database_matches
 
 def is_word_number(w):
@@ -15,28 +16,6 @@ def is_word_number(w):
         num = w2n.word_to_num(w)
         return True
     except: return False
-
-def quote_normalization(question):
-    """ Normalize all usage of quotation marks into a separate \" """
-    new_question = []
-    for idx, tok in enumerate(question):
-        if len(tok) > 2 and tok[0] in QUOTATION_MARKS and tok[-1] in QUOTATION_MARKS:
-            new_question += ['"', tok[1:-1], '"']
-        elif len(tok) > 2 and tok[0] in QUOTATION_MARKS:
-            new_question += ['"', tok[1:]]
-        elif len(tok) > 2 and tok[-1] in QUOTATION_MARKS:
-            new_question += [tok[:-1], '"']
-        elif tok in QUOTATION_MARKS:
-            new_question.append('"')
-        elif len(tok) == 2 and tok[0] in QUOTATION_MARKS:
-            # special case: the length of entity value is 1
-            if idx + 1 < len(question) and question[idx + 1] in QUOTATION_MARKS:
-                new_question += ['"', tok[1]]
-            else:
-                new_question.append(tok)
-        else:
-            new_question.append(tok)
-    return new_question
 
 class InputProcessor():
 
@@ -141,7 +120,7 @@ class InputProcessor():
     def preprocess_question(self, entry: dict, verbose: bool = False):
         """ Tokenize, lemmatize, lowercase question"""
         # stanza tokenize, lemmatize and POS tag
-        question = ' '.join(quote_normalization(entry['question_toks']))
+        question = quote_normalization(entry['question_toks'])
         doc = self.nlp(question)
         cased_toks = [w.text for s in doc.sentences for w in s.words]
         uncased_toks = [w.text.lower() for s in doc.sentences for w in s.words]
@@ -243,7 +222,7 @@ class InputProcessor():
                     for j, word in enumerate(uncased_question_toks):
                         word = str(float(word)) if is_number(word) else word
                         for c in cell_values:
-                            if word in c and 'nomatch' in q_col_mat[j, i] and word not in self.stopwords:
+                            if word in c and 'nomatch' in q_col_mat[j, i] and word not in self.stopwords and word not in string.punctuation:
                                 q_col_mat[j, i] = 'question-column-valuematch'
                                 col_q_mat[i, j] = 'column-question-valuematch'
                                 if verbose:
@@ -251,18 +230,6 @@ class InputProcessor():
                                 break
                 except Exception as e: print(e)
             conn.close()
-
-        if False:
-            # question-column-numbermatch relation
-            col_ids = list(filter(lambda x: db['column_types'][x] == 'number' and 'id' not in db['column_names'][x][1], range(len(db['column_names']))))
-            for idx, word in enumerate(uncased_question_toks):
-                if is_number(word) or is_word_number(word):
-                    for col_id in col_ids:
-                        if 'nomatch' in q_col_mat[idx, col_id]:
-                            q_col_mat[idx, col_id] = 'question-column-numbermatch'
-                            col_q_mat[col_id, idx] = 'column-question-numbermatch'
-                            if verbose:
-                                column_matched_pairs['number'].append(str((column_names[col_id], col_id, word, idx, idx + 1)))
 
         if self.bridge:
             question = entry['question']

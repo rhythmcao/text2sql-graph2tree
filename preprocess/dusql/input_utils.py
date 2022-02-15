@@ -7,7 +7,7 @@ from itertools import product, combinations
 from numpy.core.fromnumeric import cumsum
 from utils.constants import MAX_RELATIVE_DIST
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import is_number, QUOTATION_MARKS
+from preprocess.process_utils import is_number, quote_normalization
 from preprocess.dusql.bridge_content_encoder import STOPWORDS, get_database_matches
 
 def is_word_number(word):
@@ -16,12 +16,6 @@ def is_word_number(word):
         num = cn2an.cn2an(word, 'smart')
         return True
     except: return False
-
-def quote_normalization(question):
-    for sym in QUOTATION_MARKS:
-        if sym != "\"" and sym in question:
-            question = question.replace(sym, "\"")
-    return question
 
 def load_db_contents(db_path):
     contents = json.load(open(db_path, 'r'))
@@ -309,24 +303,6 @@ class InputProcessor():
                             if verbose:
                                 column_matched_pairs['value'].append(str((col_name, i, c, word, j, j + 1)))
                             break
-        if False:
-            # question-column-numbermatch relation
-            def columns_with_type_number(col_id):
-                is_item = 2 * sum([str(c).lower().startswith('item') for c in db['cells'][col_id]]) > len(db['cells'][col_id])
-                if db['column_types'][col_id] == 'number' and 'id' not in db['column_names'][col_id][1] and not is_item:
-                    return True
-                return False
-
-            col_ids = list(filter(columns_with_type_number, range(len(column_names))))
-            for idx, word in enumerate(question_toks):
-                if word.startswith('item'): continue
-                if is_number(word) or is_word_number(word):
-                    for col_id in col_ids:
-                        if 'nomatch' in q_col_mat[idx, col_id]:
-                            q_col_mat[idx, col_id] = 'question-column-numbermatch'
-                            col_q_mat[col_id, idx] = 'column-question-numbermatch'
-                            if verbose:
-                                column_matched_pairs['number'].append(str((column_names[col_id], col_id, word, idx, idx + 1)))
 
         # extract candidate cell values for each column given the current question
         if self.bridge:

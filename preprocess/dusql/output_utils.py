@@ -2,15 +2,14 @@
 from asdl.asdl import ASDLGrammar
 from asdl.transition_system import TransitionSystem
 from utils.constants import DATASETS
-from preprocess.dusql.value_utils import ValueProcessor
 
 class OutputProcessor():
 
     def __init__(self, table_path=None, db_dir=None, **kargs) -> None:
         super(OutputProcessor, self).__init__()
-        self.value_processor = ValueProcessor(table_path=table_path, db_dir=db_dir)
         grammar = ASDLGrammar.from_filepath(DATASETS['dusql']['grammar'])
-        self.trans = TransitionSystem.get_class_by_dataset('dusql')(grammar)
+        self.trans = TransitionSystem.get_class_by_dataset('dusql')(grammar, table_path, db_dir)
+        self.value_processor = self.trans.unparser.value_processor
 
     def pipeline(self, entry: dict, db: dict, verbose: bool = False):
         # extract schema sub-graph for graph pruning, entry key: 'used_tables' and 'used_columns'
@@ -26,6 +25,7 @@ class OutputProcessor():
 
     def auxiliary_labels(self, entry: dict, db: dict):
         graph = entry['graph']
+        # number of schema items + 1, due to TIME_NOW
         q_num, s_num = len(entry['cased_question_toks']), len(db['table_names']) + len(db['column_names']) + 1
         # by default: O -> 0 ; B -> 1 ; I -> 2
         index_pairs = [val.matched_index for val in entry['candidates']]

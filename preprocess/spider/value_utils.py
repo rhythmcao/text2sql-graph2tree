@@ -1,20 +1,13 @@
 #coding=utf8
 import re, os, json, pickle, sqlite3
 import editdistance as edt
-from word2number import w2n
-from dateutil import parser
-from fuzzywuzzy import process
 from itertools import combinations, product
 from collections import Counter
 from asdl.transition_system import SelectValueAction
-from preprocess.process_utils import is_number, is_int, ValueCandidate, State, SQLValue
+from preprocess.process_utils import is_number, is_int, is_date, BOOL_TRUE, BOOL_FALSE
+from preprocess.process_utils import map_en_string_to_number, map_en_string_to_date, number_string_normalization, try_fuzzy_match
+from preprocess.process_utils import ValueCandidate, State, SQLValue
 from utils.constants import TEST
-
-
-def is_date(s):
-    try:
-        if re.search(r'(\d{4}-\d{1,2}-\d{1,2})', s) is not None: return True
-    except: return False
 
 AGG_OP = ('none', 'max', 'min', 'count', 'sum', 'avg')
 CMP_OP = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
@@ -35,15 +28,10 @@ ABBREV_SET = [
     set({'a puzzling pattern', 'a puzzling parallax'})
 ]
 n2w1 = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
-w2n1 = dict(zip(n2w1, range(11)))
 n2w2 = ['zeroth', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
-w2n2 = dict(zip(n2w2, range(11)))
 n2w3 = ['', 'once', 'twice', 'thrice']
-w2n3 = dict(zip(n2w3[1:], range(1, 4)))
 n2m1 = ['', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
-m2n1 = dict(zip(n2m1[1:], range(1, 13)))
-n2m2 = ['', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-m2n2 = dict(zip(n2m2[1:], range(1, 13)))
+n2m2 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sept', 'oct', 'nov', 'dec']
 
 def remove_names(question_toks):
     # first and last may influence the value extraction
@@ -74,6 +62,7 @@ class ValueProcessor():
             self.tables = pickle.load(open(table_path, 'rb'))
         else:
             self.tables = table_path
+        # TEST: for submission, save time and space
         self.contents = self._load_db_contents() if not TEST else None
         self.cell_types = self._infer_cell_types() if not TEST else None
 
@@ -84,24 +73,24 @@ class ValueProcessor():
         contents = {}
         for db in self.tables:
             db = self.tables[db]
-            contents[db['db_id']] = [['*']]
+            contents[db['db_id']] = [[]]
             db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
             if not os.path.exists(db_file):
                 contents[db['db_id']].extend([[] for _ in range(len(db['column_names_original']) - 1)])
-                continue
                 # raise ValueError('[ERROR]: database file %s not found ...' % (db_file))
+                continue
             conn = sqlite3.connect(db_file)
             conn.text_factory = lambda b: b.decode(errors='ignore')
             for table_id, column_name in db['column_names_original'][1:]:
                 table_name = db['table_names_original'][table_id]
                 cursor = conn.execute("SELECT DISTINCT \"%s\" FROM \"%s\";" % (column_name, table_name))
                 cell_values = cursor.fetchall()
-                cell_values = [each[0] for each in cell_values if str(each[0]).strip().lower() not in ['', 'null', 'none']]
+                cell_values = [each[0].strip() for each in cell_values if str(each[0]).strip().lower() not in ['', 'null', 'none']]
                 contents[db['db_id']].append(cell_values)
             conn.close()
         return contents
 
-    def obtain_cell_values(self, db, col_id):
+    def retrieve_cell_values(self, db, col_id):
         if col_id == 0: return []
         db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
         if not os.path.exists(db_file):
@@ -124,12 +113,29 @@ class ValueProcessor():
             cell_types[db['db_id']] = ['text']
             for col_id in range(len(db['column_names'])):
                 if col_id == 0: continue
-                col_type = db['column_types'][col_id]
                 cell_values = self.contents[db['db_id']][col_id]
-                cell_types[db['db_id']].append(self.obtain_cell_type(cell_values, col_type))
+                col_type = db['column_types'][col_id]
+                cell_types[db['db_id']].append(self.infer_cell_type(cell_values, col_type))
+                # cell_types[db['db_id']].append(col_type)
         return cell_types
 
-    def postprocess_value(self, value_id, value_candidates, db, state):
+    def infer_cell_type(self, cell_values, col_type):
+        """ Three types: text, number, time
+        Attention, boolean is merged into text
+        """
+        def get_type(v):
+            if type(v) in [int, float]: return 'number'
+            elif is_date(v): return 'time'
+            else: return 'text'
+
+        types = [get_type(v) for v in cell_values]
+        if len(types) > 0:
+            counter = Counter(types)
+            cell_type = counter.most_common(1)[0][0]
+        else: cell_type = col_type if col_type in ['number', 'time'] else 'text'
+        return cell_type
+
+    def postprocess_value(self, value_id, value_candidates, db, state, entry):
         """ Retrieve DB cell values for reference
         @params:
             value_id: int for SelectAction
@@ -139,11 +145,13 @@ class ValueProcessor():
         @return: value_str
         """
         clause = state.track.split('->')[-1]
-        col_id = state.col_id
-        col_type = db['column_types'][col_id]
-        cell_values = self.contents[db['db_id']][col_id] if not TEST else self.obtain_cell_values(db, col_id)
-        cell_type = self.cell_types[db['db_id']][col_id] if not TEST else self.obtain_cell_type(cell_values, col_type)
+        agg_op, col_id = state.agg_op, state.col_id
         like_op = 'like' in state.cmp_op
+        raw_question = entry['question']
+        col_type = db['column_types'][col_id]
+        cell_values = self.contents[db['db_id']][col_id] if not TEST else self.retrieve_cell_values(db, col_id)
+        cell_type = self.cell_types[db['db_id']][col_id] if not TEST else self.infer_cell_type(cell_values, col_type)
+
         if value_id < SelectValueAction.size('spider'): # reserved values such as null, true, false, 0, 1
             value_str = SelectValueAction.reserved_spider.id2word[value_id]
             if clause == 'limit': # value should be integers larger than 0
@@ -151,116 +159,70 @@ class ValueProcessor():
             elif clause == 'having' or col_id == 0: # value should be integers
                 value_str = 1 if value_str in ['1', 'true'] else 0
             elif value_str == 'null': # special value null
-                value_str = 0 if col_type == 'number' else 'null'
+                value_str = 0 if cell_type == 'number' else 'null'
             else: # value in WHERE clause, it depends
-                bool_true = ['true', 't', 'yes', 'y', '1']
-                bool_false = ['false', 'f', 'no', 'n', '0']
-                if value_str == 'false':
+                if value_str in ['true', 'false']:
+                    evidence = []
                     for cv in cell_values:
-                        if (type(cv) == str and cv.lower() in bool_false) or (type(cv) == int and cv == 0):
-                            value_str = cv
-                            break
+                        for idx, (t, f) in enumerate(zip(BOOL_TRUE, BOOL_FALSE)):
+                            if cv == t or cv == f:
+                                evidence.append(idx)
+                                break
+                    if len(evidence) > 0:
+                        bool_idx = Counter(evidence).most_common(1)[0][0]
+                        value_str = BOOL_TRUE[bool_idx] if value_str == 'true' else BOOL_FALSE[bool_idx]
                     else:
-                        value_str = 0 if cell_type in ['int', 'float'] else 'F'
-                elif value_str == 'true':
-                    for cv in cell_values:
-                        if (type(cv) == str and cv.lower() in bool_true) or (type(cv) == int and cv == 1):
-                            value_str = cv
-                            break
-                    else:
-                        value_str = 1 if cell_type in ['int', 'float'] else 'T'
+                        value_str = (1 if value_str == 'true' else 0) if cell_type == 'number' else ('Yes' if value_str == 'true' else 'No')
                 else: # 0 or 1 for WHERE value
-                    value_str = int(value_str) if cell_type in ['int', 'float'] else str(value_str)
+                    value_str = int(value_str) if cell_type == 'number' else str(value_str)
         else:
-            value_str = value_candidates[value_id - SelectValueAction.size('spider')].matched_value
+            vc = value_candidates[value_id - SelectValueAction.size('spider')]
+            value_str, cased_value_str = vc.matched_value, vc.matched_cased_value
 
-            def word_to_number():
-                nonlocal value_str
-                try:
-                    value_str = w2n.word_to_num(value_str)
-                    return True
-                except: pass
-                if value_str in w2n2:
-                    value_str = w2n2[value_str]
-                    return True
-                elif value_str in w2n3:
-                    value_str = w2n3[value_str]
-                    return True
-                elif value_str in m2n1:
-                    value_str = m2n1[value_str]
-                    return True
-                elif value_str in m2n2:
-                    value_str = m2n2[value_str]
+            def parse_number():
+                num = map_en_string_to_number(value_str)
+                if num is not None:
+                    nonlocal value_str
+                    value_str = num
                     return True
                 return False
 
             if clause == 'limit': # value should be integers
                 if is_number(value_str):
                     value_str = int(value_str)
-                elif word_to_number(): pass
+                elif parse_number(): pass
                 else: value_str = 1 # for all other cases, use 1
             elif clause == 'having': # value should be numbers
                 if is_number(value_str):
                     value_str = int(value_str) if is_int(value_str) else float(value_str)
-                elif word_to_number(): pass
-                else: value_str = 1
-            else: # WHERE clause
-                def synonym_set(): # some special case in the training set
-                    nonlocal value_str
-                    for s in ABBREV_SET:
-                        if value_str.lower() in s:
-                            lowered_cell_values = [str(v).lower() for v in cell_values]
-                            for v in s:
-                                if v in lowered_cell_values:
-                                    index = lowered_cell_values.index(v)
-                                    value_str = str(cell_values[index])
-                                    return True
+                elif parse_number(): pass
+                else: value_str = 1 # for all other cases, use 1
+            else: # WHERE clause, value can be numbers, datetime or text
+                def parse_datetime():
+                    date = map_en_string_to_date(value_str)
+                    if date is not None:
+                        nonlocal value_str
+                        value_str = date
+                        return True
                     return False
 
-                def date_parsing():
-                    nonlocal value_str
-                    try:
-                        datetime_obj = parser.parse(value_str, fuzzy=True)
-                        value_str = str(datetime_obj.strftime("%Y-%m-%d"))
-                        return True
-                    except: return False
-
-                # remove ' ' and ',' and RHS 's', for negative number '- 50', large numbers '13,000' and year with s, '90s'
-                normed_value_str = value_str.replace(' ', '').replace(',', '').rstrip('s')
-                if is_int(normed_value_str):
-                    value_str = int(float(normed_value_str)) if cell_type in ['int', 'float'] else str(normed_value_str)
-                elif is_number(normed_value_str):
-                    value_str = float(normed_value_str) if cell_type in ['int', 'float'] else str(normed_value_str)
-                elif cell_type in ['int', 'time'] and word_to_number(): pass # try converting word to number
-                elif cell_type == 'time' and date_parsing(): pass # try parsing into time xxxx-xx-xx
-                elif cell_type == 'text' and synonym_set(): pass # some synonyms in the training set
-                else: # fuzzy match
-                    cased_value_str = value_str #value_candidates[value_id - SelectValueAction.size('spider')].matched_cased_value
-                    if len(cell_values) == 0 or like_op: # no cell values available, directly return the cased_str
-                        value_str = str(cased_value_str)
-                    else: # fuzzy match, choose the most similar cell value
-                        cell_values = [str(v) for v in cell_values]
-                        most_similar = process.extractOne(value_str, cell_values)
-                        value_str = most_similar[0] if most_similar[1] > 50 else str(cased_value_str)
-        value_str = str(value_str) if type(value_str) != str else '"%' + value_str.strip() + '%"' if like_op else '"' + value_str.strip() + '"'
+                normed_value_str = number_string_normalization(value_str)
+                if cell_type == 'number' and is_number(normed_value_str):
+                    value_str = int(float(normed_value_str)) if is_int(normed_value_str) else float(normed_value_str)
+                elif cell_type == 'number' and parse_number(): pass
+                elif cell_type == 'time' and parse_number(): value_str = str(value_str)
+                elif cell_type == 'time' and parse_datetime(): pass
+                else: # text values
+                    if is_number(normed_value_str): # some text appears like numbers such as phone number
+                        value_str = str(normed_value_str)
+                    else:
+                        value_str = try_fuzzy_match(cased_value_str, ([] if like_op else cell_values), raw_question, ABBREV_SET, 60)
+        # add quote and wild symbol
+        if type(value_str) != str: value_str = str(value_str)
+        elif like_op: value_str = '"%' + value_str.strip() + '%"'
+        else: value_str = '"' + value_str.strip() + '"'
         return value_str
 
-    def obtain_cell_type(self, cell_values, col_type):
-        """ Four types:
-        text, int, float, time
-        """
-        def get_type(v):
-            if type(v) == float: return 'float'
-            elif type(v) == int: return 'int'
-            elif is_date(v): return 'time'
-            else: return 'text'
-
-        types = [get_type(v) for v in cell_values]
-        if len(types) > 0:
-            counter = Counter(types)
-            cell_type = counter.most_common(1)[0][0]
-        else: cell_type = 'int' if col_type == 'number' else 'time' if col_type == 'time' else 'text'
-        return cell_type
 
     def extract_values(self, entry: dict, db: dict, verbose=False):
         """ Extract values(class SQLValue) which will be used in AST construction

@@ -43,7 +43,7 @@ def is_int(s):
 
 def is_date(s):
     try:
-        if re.search(r'(\d{4}[-/]\d{1,2}[-/]\d{1,2})', s.strip()) is not None: return True
+        if re.search(r'(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})', s.strip()) is not None: return True
     except: return False
 
 
@@ -158,24 +158,19 @@ def extract_raw_question_span(s: str, q: str):
 def try_fuzzy_match(cased_value: str, cell_values: List[str], raw_question: str, abbrev_set: List[Set] = [], score: int = 60):
     """ During postprocessing, try text string fuzzy match
     """
-    def try_search_abbrev_set():
-        syn = search_for_synonyms(cased_value, cell_values, abbrev_set)
-        if syn is not None:
-            nonlocal cased_value
-            cased_value = syn
-            return True
-        return False
-
     if len(cell_values) == 0: # no cell values available or LIKE operator avoids search for database
         cased_value = extract_raw_question_span(cased_value, raw_question)
     else: # fuzzy match, choose the most similar cell value
         cell_values = [str(v) for v in cell_values]
-        matched_value, matched_score = process.extractOne(cased_value.replace(' ', ''), cell_values)
+        matched_value, matched_score = process.extractOne(cased_value, cell_values)
         if matched_score >= score:
             cased_value = matched_value
-        elif try_search_abbrev_set(): pass
         else:
-            cased_value = extract_raw_question_span(cased_value, raw_question)
+            retrieve_value = search_for_synonyms(cased_value, cell_values, abbrev_set)
+            if retrieve_value is not None:
+                cased_value = retrieve_value
+            else:
+                cased_value = extract_raw_question_span(cased_value, raw_question)
     return cased_value.strip()
 
 

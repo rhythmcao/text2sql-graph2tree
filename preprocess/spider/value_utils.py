@@ -21,6 +21,7 @@ ABBREV_SET = [
     set({'f', 'female', 'girl', 'woman', 'females', 'girls', 'women'}),
     set({'m', 'male', 'boy', 'man', 'males', 'boys', 'men'}),
     set({'italian', 'italy'}),
+    set({'french', 'france'}),
     set({'polish', 'poland'}),
     set({'la', 'los angeles', 'louisiana'}),
     set({'comp. sci.', 'computer science'}),
@@ -85,7 +86,7 @@ class ValueProcessor():
                 table_name = db['table_names_original'][table_id]
                 cursor = conn.execute("SELECT DISTINCT \"%s\" FROM \"%s\";" % (column_name, table_name))
                 cell_values = cursor.fetchall()
-                cell_values = [each[0].strip() for each in cell_values if str(each[0]).strip().lower() not in ['', 'null', 'none']]
+                cell_values = [each[0] for each in cell_values if str(each[0]).strip().lower() not in ['', 'null', 'none']]
                 contents[db['db_id']].append(cell_values)
             conn.close()
         return contents
@@ -125,7 +126,7 @@ class ValueProcessor():
         """
         def get_type(v):
             if type(v) in [int, float]: return 'number'
-            elif is_date(v): return 'time'
+            elif is_date(v) or col_type == 'time': return 'time'
             else: return 'text'
 
         types = [get_type(v) for v in cell_values]
@@ -151,15 +152,16 @@ class ValueProcessor():
         col_type = db['column_types'][col_id]
         cell_values = self.contents[db['db_id']][col_id] if not TEST else self.retrieve_cell_values(db, col_id)
         cell_type = self.cell_types[db['db_id']][col_id] if not TEST else self.infer_cell_type(cell_values, col_type)
+        output = None
 
         if value_id < SelectValueAction.size('spider'): # reserved values such as null, true, false, 0, 1
             value_str = SelectValueAction.reserved_spider.id2word[value_id]
             if clause == 'limit': # value should be integers larger than 0
-                value_str = 1
+                output = 1
             elif clause == 'having' or col_id == 0: # value should be integers
-                value_str = 1 if value_str in ['1', 'true'] else 0
+                output = 1 if value_str in ['1', 'true'] else 0
             elif value_str == 'null': # special value null
-                value_str = 0 if cell_type == 'number' else 'null'
+                output = "null"
             else: # value in WHERE clause, it depends
                 if value_str in ['true', 'false']:
                     evidence = []
@@ -170,58 +172,60 @@ class ValueProcessor():
                                 break
                     if len(evidence) > 0:
                         bool_idx = Counter(evidence).most_common(1)[0][0]
-                        value_str = BOOL_TRUE[bool_idx] if value_str == 'true' else BOOL_FALSE[bool_idx]
+                        output = BOOL_TRUE[bool_idx] if value_str == 'true' else BOOL_FALSE[bool_idx]
                     else:
-                        value_str = (1 if value_str == 'true' else 0) if cell_type == 'number' else ('Yes' if value_str == 'true' else 'No')
+                        output = (1 if value_str == 'true' else 0) if cell_type == 'number' else ('Yes' if value_str == 'true' else 'No')
                 else: # 0 or 1 for WHERE value
-                    value_str = int(value_str) if cell_type == 'number' else str(value_str)
+                    output = int(value_str) if cell_type == 'number' else str(value_str)
         else:
             vc = value_candidates[value_id - SelectValueAction.size('spider')]
             value_str, cased_value_str = vc.matched_value, vc.matched_cased_value
 
-            def parse_number():
-                num = map_en_string_to_number(value_str)
-                if num is not None:
-                    nonlocal value_str
-                    value_str = num
-                    return True
-                return False
-
             if clause == 'limit': # value should be integers
                 if is_number(value_str):
-                    value_str = int(value_str)
-                elif parse_number(): pass
-                else: value_str = 1 # for all other cases, use 1
+                    output = int(value_str)
+                else:
+                    num = map_en_string_to_number(value_str)
+                    output = num if num is not None else 1
             elif clause == 'having': # value should be numbers
                 if is_number(value_str):
-                    value_str = int(value_str) if is_int(value_str) else float(value_str)
-                elif parse_number(): pass
-                else: value_str = 1 # for all other cases, use 1
+                    output = int(value_str) if is_int(value_str) else float(value_str)
+                else:
+                    num = map_en_string_to_number(value_str)
+                    output = num if num is not None else 1
             else: # WHERE clause, value can be numbers, datetime or text
+                def parse_number():
+                    num = map_en_string_to_number(value_str)
+                    if num is not None:
+                        nonlocal output
+                        output = num
+                        return True
+                    return False
+
                 def parse_datetime():
                     date = map_en_string_to_date(value_str)
                     if date is not None:
-                        nonlocal value_str
-                        value_str = date
+                        nonlocal output
+                        output = date
                         return True
                     return False
 
                 normed_value_str = number_string_normalization(value_str)
                 if cell_type == 'number' and is_number(normed_value_str):
-                    value_str = int(float(normed_value_str)) if is_int(normed_value_str) else float(normed_value_str)
+                    output = int(float(normed_value_str)) if is_int(normed_value_str) else float(normed_value_str)
                 elif cell_type == 'number' and parse_number(): pass
                 elif cell_type == 'time' and parse_number(): value_str = str(value_str)
                 elif cell_type == 'time' and parse_datetime(): pass
                 else: # text values
                     if is_number(normed_value_str): # some text appears like numbers such as phone number
-                        value_str = str(normed_value_str)
+                        output = str(normed_value_str)
                     else:
-                        value_str = try_fuzzy_match(cased_value_str, ([] if like_op else cell_values), raw_question, ABBREV_SET, 60)
+                        output = try_fuzzy_match(cased_value_str, ([] if like_op else cell_values), raw_question, ABBREV_SET, 62)
         # add quote and wild symbol
-        if type(value_str) != str: value_str = str(value_str)
-        elif like_op: value_str = '"%' + value_str.strip() + '%"'
-        else: value_str = '"' + value_str.strip() + '"'
-        return value_str
+        if type(output) != str: output = str(output)
+        elif like_op: output = '"%' + str(output).strip() + '%"'
+        else: output = '"' + str(output).strip() + '"'
+        return output
 
 
     def extract_values(self, entry: dict, db: dict, verbose=False):

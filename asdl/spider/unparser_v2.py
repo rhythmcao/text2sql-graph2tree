@@ -175,7 +175,7 @@ class UnParser():
             conj = ' AND ' if 'AndCondition' in ctr_name else ' OR '
             return conj.join(conds)
         else:
-            return self.unparse_cond(conds_ast, db, value_candidates, clause, *args, **kargs)
+            return self.unparse_cond(conds_ast, db, value_candidates, entry, clause, *args, **kargs)
 
     def unparse_cond(self, cond_ast: AbstractSyntaxTree, db: dict, value_candidates: list, entry: dict, clause: str, *args, **kargs):
         CMP_OP_MAPPING = {
@@ -209,7 +209,10 @@ class UnParser():
             else:
                 val_id = int(val_ast[self.grammar.get_field_by_text('val_id val_id')][0].value)
                 val_str = self.value_processor.postprocess_value(val_id, value_candidates, db, state, entry)
-        else:
+        elif ctr_name == 'SQLValue':
             val_field = val_ast[self.grammar.get_field_by_text('sql value_sql')][0]
             val_str = '( ' + self.unparse_sql(val_field.value, db, value_candidates, entry, *args, **kargs) + ' )'
+        else:
+            col_id = int(val_ast[self.grammar.get_field_by_text('col_id col_id')][0].value)
+            val_str = self.retrieve_column_name(col_id, db)
         return val_str

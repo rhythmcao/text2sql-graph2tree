@@ -268,6 +268,9 @@ class Parser():
         if type(val) == dict: # nested sql
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('SQLValue'))
             ast_node[self.grammar.get_field_by_text('sql value_sql')][0].add_value(self.parse_sql(val, sql_values, track))
+        elif type(val) == list: # column
+            ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('ColumnValue'))
+            ast_node[self.grammar.get_field_by_text('col_id col_id')][0].add_value(int(val[1]))
         else: # literal value
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('LiteralValue'))
             sql_value = SQLValue(str(val), state)

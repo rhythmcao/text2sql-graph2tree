@@ -1,5 +1,5 @@
 .vscode
-.ipynb
+*.ipynb
 *.log
 __pycache__
 */__pycache__

@@ -32,7 +32,7 @@ n2w1 = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 
 n2w2 = ['zeroth', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
 n2w3 = ['', 'once', 'twice', 'thrice']
 n2m1 = ['', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
-n2m2 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sept', 'oct', 'nov', 'dec']
+n2m2 = ['', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
 def remove_names(question_toks):
     # first and last may influence the value extraction
@@ -161,7 +161,7 @@ class ValueProcessor():
             elif clause == 'having' or col_id == 0: # value should be integers
                 output = 1 if value_str in ['1', 'true'] else 0
             elif value_str == 'null': # special value null
-                output = "null"
+                output = 'null'
             else: # value in WHERE clause, it depends
                 if value_str in ['true', 'false']:
                     evidence = []
@@ -174,34 +174,32 @@ class ValueProcessor():
                         bool_idx = Counter(evidence).most_common(1)[0][0]
                         output = BOOL_TRUE[bool_idx] if value_str == 'true' else BOOL_FALSE[bool_idx]
                     else:
-                        output = (1 if value_str == 'true' else 0) if cell_type == 'number' else ('Yes' if value_str == 'true' else 'No')
+                        output = (1 if value_str == 'true' else 0) if cell_type == 'number' else ('T' if value_str == 'true' else 'F')
                 else: # 0 or 1 for WHERE value
                     output = int(value_str) if cell_type == 'number' else str(value_str)
         else:
             vc = value_candidates[value_id - SelectValueAction.size('spider')]
             value_str, cased_value_str = vc.matched_value, vc.matched_cased_value
 
+            def parse_number(month_week=False):
+                num = map_en_string_to_number(value_str, month_week)
+                if num is not None:
+                    nonlocal output
+                    output = num
+                    return True
+                return False
+
             if clause == 'limit': # value should be integers
                 if is_number(value_str):
-                    output = int(value_str)
-                else:
-                    num = map_en_string_to_number(value_str)
-                    output = num if num is not None else 1
+                    output = int(float(value_str))
+                elif parse_number(False): pass
+                else: output = 1
             elif clause == 'having': # value should be numbers
                 if is_number(value_str):
-                    output = int(value_str) if is_int(value_str) else float(value_str)
-                else:
-                    num = map_en_string_to_number(value_str)
-                    output = num if num is not None else 1
+                    output = int(float(value_str)) if is_int(value_str) else float(value_str)
+                elif parse_number(False): pass
+                else: output = 1
             else: # WHERE clause, value can be numbers, datetime or text
-                def parse_number():
-                    num = map_en_string_to_number(value_str)
-                    if num is not None:
-                        nonlocal output
-                        output = num
-                        return True
-                    return False
-
                 def parse_datetime():
                     date = map_en_string_to_date(value_str)
                     if date is not None:
@@ -213,8 +211,8 @@ class ValueProcessor():
                 normed_value_str = number_string_normalization(value_str)
                 if cell_type == 'number' and is_number(normed_value_str):
                     output = int(float(normed_value_str)) if is_int(normed_value_str) else float(normed_value_str)
-                elif cell_type == 'number' and parse_number(): pass
-                elif cell_type == 'time' and parse_number(): value_str = str(value_str)
+                elif cell_type == 'number' and parse_number(True): pass
+                elif cell_type == 'time' and parse_number(True): value_str = str(value_str)
                 elif cell_type == 'time' and parse_datetime(): pass
                 else: # text values
                     if is_number(normed_value_str): # some text appears like numbers such as phone number
@@ -425,30 +423,18 @@ class ValueProcessor():
             if result is None: return False
             year, month, day = result.groups()
             month, day = int(month), int(day)
-            if str(day)[-1] == '1':
-                days = [str(day), str(day) + 'st', str(day) + '-st', str(day) + 'th', str(day) + '-th']
-            elif str(day)[-1] == '2':
-                days = [str(day), str(day) + 'nd', str(day) + '-nd', str(day) + 'th', str(day) + '-th']
-            elif str(day)[-1] == '3':
-                days = [str(day), str(day) + 'rd', str(day) + '-rd', str(day) + 'th', str(day) + '-th']
-            else:
-                days = [str(day), str(day) + 'th', str(day) + '-th']
-            if day < 10: days = days + ['0' + d for d in days]
-            months = [n2m1[month], n2m2[month]]
-            question = ' '.join(question_toks)
-            for d, m in product(days, months):
-                p1 = r'%s %s , %s' % (m, d, year)
-                p2 = r'%s %s , %s' % (d, m, year)
-                p3 = r'%s %s %s' % (m, d, year)
-                p4 = r'%s %s %s' % (d, m, year)
-                for p in [p1, p2, p3, p4]:
-                    result = re.search(p, question)
-                    if result is not None:
-                        span = result.group(0)
-                        start = question[:question.index(span)].count(' ')
-                        length = len(span.split(' '))
-                        add_value_from_token_idx((start, start + length), question_toks, sqlvalue)
-                        return True
+            day_prefix, day_suffix = '0?', '\s?-?\s?(st|nd|rd|th)?'
+            month_choice = '(%s|%s)' % (n2m1[month], n2m2[month])
+            p1 = r'%s%s%s[\s,]+%s[\s,]+%s' % (day_prefix, day, day_suffix, month_choice, year)
+            p2 = r'%s[\s,]+%s%s%s[\s,]+%s' % (month_choice, day_prefix, day, day_suffix, year)
+            for p in [p1, p2]:
+                result = re.search(p, question)
+                if result is not None:
+                    span = result.group(0)
+                    start = question[:question.index(span)].count(' ')
+                    length = len(span.split(' '))
+                    add_value_from_token_idx((start, start + length), question_toks, sqlvalue)
+                    return True
             return False
 
         def process_abbreviation(val):

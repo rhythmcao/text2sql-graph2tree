@@ -80,10 +80,6 @@ with open(sql_path) as inf:
 sql_data_new = []
 for data in sql_data:
     try:
-        if data['question'] == 'What is the description of the type of the company who concluded its contracts most recently?':
-            data['question'] = 'What is the type of the company who concluded its contracts most recently ?'
-            data['question_toks'] = data['question'].split()
-            data['query'] = 'SELECT T1.company_type FROM Third_Party_Companies AS T1 JOIN Maintenance_Contracts AS T2 ON T1.company_id  =  T2.maintenance_contract_company_id ORDER BY T2.contract_end_date DESC LIMIT 1'
         db_id = data["db_id"]
         schema = schemas[db_id]
         table = tables[db_id]

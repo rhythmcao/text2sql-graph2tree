@@ -170,7 +170,7 @@ def toks2nested(toks):
         Determine the scope for each sub-sql
         mapping [select, count, (, c1, ), from, (, select c1, c2, from, t, ), ... ] into
         [select, count, (, c1, ), from, [select, c1, c2, from, t], ... ]
-    """   
+    """
     def detect_sql(idx):
         count, sql_list = 0, []
         while idx < len(toks):
@@ -210,7 +210,7 @@ def toks2nested(toks):
         # not all sqls are wrapped with (), e.g. sql1 intersect sql2
         # add wrapper for each sql on the left and right handside of intersect/union/except
         nested_toks = intersect_union_except(nested_toks)
-        return nested_toks 
+        return nested_toks
     except:
         print('Something unknown happened when transforming %s' % (' '.join(toks)))
         return None

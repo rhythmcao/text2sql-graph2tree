@@ -22,12 +22,10 @@ def amend_primary_keys(tables: list, verbose: bool = True):
         for c in candidates:
             pks.append(c)
             if verbose:
-                print('DB[{}]: add primary key: {}'.format(
-                    table['db_id'], table['column_names_original'][c]))
+                print('DB[{}]: add primary key: {}'.format(table['db_id'], table['column_names_original'][c]))
         count += len(candidates)
         table['primary_keys'] = sorted(list(pks))
-    if verbose:
-        print('{} primary keys added'.format(count))
+    print('{} primary keys added'.format(count))
     return tables
 
 def amend_foreign_keys(tables: list, verbose: bool = True):
@@ -90,9 +88,8 @@ def amend_foreign_keys(tables: list, verbose: bool = True):
                                 num_foreign_keys_added += 1
         foreign_keys = sorted(list(foreign_keys), key=lambda x: x[0])
         table['foreign_keys'] = foreign_keys
-    if verbose:
-        print('{} foreign key pairs reversed'.format(num_foreign_keys_reversed))
-        print('{} foreign key pairs added'.format(num_foreign_keys_added))
+    print('{} foreign key pairs reversed'.format(num_foreign_keys_reversed))
+    print('{} foreign key pairs added'.format(num_foreign_keys_added))
     return tables
 
 def obtain_column_type_and_values(db_dir, db_id, tab_name, col_name):
@@ -143,8 +140,7 @@ def amend_boolean_types(tables: list, db_dir: str = 'data/spider/database', verb
                     print('DB[{}]: revise column[{}.{}] type: {}->boolean'.format(db_id, t_name, c_name, old_type))
                 db['column_types'][j] = 'boolean'
                 count += 1
-    if verbose:
-        print('{} column types are changed to boolean'.format(count))
+    print('{} column types are changed to boolean'.format(count))
     return tables
 
 # incorrect SQL:
@@ -378,9 +374,9 @@ geo_major_semantics = {
     "major river": "river which is longer than 750"
 }
 
-def amend_examples_in_dataset(train: dict, schemas: dict, tables: dict, verbose: bool = False):
+def amend_examples_in_dataset(dataset: list, schemas: dict, tables: dict, verbose: bool = False):
     count = 0
-    for data in train:
+    for data in dataset:
         flag = False
         # we only focus the fields question, question_toks, query, and sql
         # never use fields query_toks and query_toks_no_value, thus not modify
@@ -471,18 +467,23 @@ def amend_examples_in_dataset(train: dict, schemas: dict, tables: dict, verbose:
                     print('SQL:', data['query'])
                 data['question_toks'] = data['question'].split()
                 count += 1
+                continue
+        # fix some parsing errors: table alias contradiction when the same table alias points to different tables in nested SQLs
+        data['sql'] = get_sql(Schema(schemas[data['db_id']], tables[data['db_id']]), data['query'])
+
     print('Fix %d examples in the dataset' % (count))
-    return train
+    return dataset
 
 if __name__ == '__main__':
 
+    verbose = False
     data_dir, db_dir = DATASETS['spider']['data'], DATASETS['spider']['database']
     table_path = os.path.join(data_dir, 'tables.json')
     origin_table_path = os.path.join(data_dir, 'tables.original.json')
     update_table_path = origin_table_path if os.path.exists(origin_table_path) else table_path
-    tables = amend_primary_keys(json.load(open(update_table_path, 'r')), verbose=True)
-    tables = amend_foreign_keys(tables, verbose=True)
-    tables = amend_boolean_types(tables, db_dir, verbose=True)
+    tables = amend_primary_keys(json.load(open(update_table_path, 'r')), verbose=verbose)
+    tables = amend_foreign_keys(tables, verbose=verbose)
+    tables = amend_boolean_types(tables, db_dir, verbose=verbose)
     if not os.path.exists(origin_table_path):
         shutil.copyfile(table_path, origin_table_path)
     json.dump(tables, open(table_path, 'w'), indent=4)
@@ -496,6 +497,5 @@ if __name__ == '__main__':
         else:
             dataset = json.load(open(dataset_path, 'r'))
             shutil.copyfile(dataset_path, origin_dataset_path)
-        dataset = amend_examples_in_dataset(dataset, schemas, tables, verbose=True)
+        dataset = amend_examples_in_dataset(dataset, schemas, tables, verbose=verbose)
         json.dump(dataset, open(dataset_path, 'w'), indent=4)
-    

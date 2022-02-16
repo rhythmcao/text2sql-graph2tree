@@ -35,6 +35,8 @@ The following commands are provided in `setup.sh`.
 
 2. Merge the `data/train_spider.json` and `data/train_others.json` into one single dataset `data/train.json`.
 
+        python -c "import json; json.dump(json.load(open('data/spider/train_spider.json', 'r')) + json.load(open('data/spider/train_others.json', 'r')), open('data/spider/train.json', 'w'), indent=4)"
+
 3. Preprocess the train and dev dataset, including input normalization, schema linking and graph construction.
 
         ./run/run_preprocessing.sh

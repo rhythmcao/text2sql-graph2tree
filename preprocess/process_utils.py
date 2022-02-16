@@ -15,16 +15,12 @@ ORDINAL = ['zeroth', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'se
 FREQUENCY = ['once', 'twice', 'thrice']
 
 MONTH = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
-MONTH_ABBREV = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sept', 'oct', 'nov', 'dec']
-NUMBER2MONTH = [''] + MONTH
-NUMBER2MONTH_ABBREV = [''] + MONTH_ABBREV
-MONTH2NUMBER = dict(chain(zip(MONTH, range(1, 13)), zip(MONTH_ABBREV, range(1, 13))))
+MONTH_ABBREV = [s[:3] for s in MONTH]
+MONTH2NUMBER = dict(chain(zip(MONTH, range(1, 13)), zip(MONTH_ABBREV, range(1, 13)), [('sept', 9)]))
 
 WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-WEEK_ABBREV = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+WEEK_ABBREV = [s[:3] for s in WEEK]
 WEEK2NUMBER = dict(chain(zip(WEEK, range(1, 8)), zip(WEEK_ABBREV, range(1, 8))))
-NUMBER2WEEK = [''] + WEEK
-NUMBER2WEEK_ABBREV = [''] + WEEK_ABBREV
 
 
 def is_number(s):
@@ -85,7 +81,7 @@ def number_string_normalization(s: str):
     return re.sub(r'["\',]', '', s.lower()).rstrip('-').rstrip('s').strip()
 
 
-def map_en_string_to_number(s: str, force: bool = True):
+def map_en_string_to_number(s: str, month_week: bool = True):
     """ During postprocessing, try to map english word string into int number
     """
     s = re.sub(r'["\',]', '', s.lower()).rstrip('-').rstrip('.').strip()
@@ -103,13 +99,13 @@ def map_en_string_to_number(s: str, force: bool = True):
     suffixes = ['s', 'st', 'nd', 'rd', 'th']
     for suf in suffixes:
         try:
-            num = w2n.word_to_num(s.rstrip(suf).strip())
+            num = w2n.word_to_num(s.rstrip(suf).rstrip('-').strip())
             return num
         except: pass
     # try mapping to frequency number
     if s in FREQUENCY: return FREQUENCY.index(s) + 1
     # try month and week mapping
-    if force:
+    if month_week:
         if s in MONTH2NUMBER: return MONTH2NUMBER[s]
         if s in WEEK2NUMBER: return WEEK2NUMBER[s]
     return None

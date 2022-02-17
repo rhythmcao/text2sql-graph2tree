@@ -1,7 +1,7 @@
 #coding=utf8
 import re, os, json, pickle, sqlite3
 import editdistance as edt
-from itertools import combinations, product
+from itertools import combinations
 from collections import Counter
 from asdl.transition_system import SelectValueAction
 from preprocess.process_utils import is_number, is_int, is_date, BOOL_TRUE, BOOL_FALSE
@@ -220,8 +220,8 @@ class ValueProcessor():
                     else:
                         output = try_fuzzy_match(cased_value_str, ([] if like_op else cell_values), raw_question, ABBREV_SET, 62)
         # add quote and wild symbol
-        if type(output) != str: output = str(output)
-        elif like_op: output = '"%' + str(output).strip() + '%"'
+        if like_op: output = '"%' + str(output).strip() + '%"'
+        elif type(output) != str: output = str(output)
         else: output = '"' + str(output).strip() + '"'
         return output
 

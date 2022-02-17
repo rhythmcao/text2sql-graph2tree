@@ -39,7 +39,7 @@ def is_int(s):
 
 def is_date(s):
     try:
-        if re.search(r'(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})', s.strip()) is not None: return True
+        if re.search(r'(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})( ?\d{1,2}:\d{1,2}:\d{1,2})?', s.strip()) is not None: return True
     except: return False
 
 
@@ -115,23 +115,28 @@ def map_en_string_to_date(s: str):
     """ During postprocessing, try to map english word string into datetime format `2021-01-01`
     """
     try:
+        s = re.sub(r'\s*(-|:)\s*', lambda match: match.group(1), s) # remove whitespace near - and :
         datetime_obj = datetime_parser.parse(s, fuzzy=True)
-        norm_date = str(datetime_obj.strftime("%Y-%m-%d"))
+        if datetime_obj.hour != 0 or datetime_obj.minute != 0 or datetime_obj.second != 0:
+            norm_date = str(datetime_obj.strftime("%Y-%m-%d %H:%M:%S"))
+        else:
+            norm_date = str(datetime_obj.strftime("%Y-%m-%d"))
         return norm_date
     except: return None
 
 
 def search_for_synonyms(value: str, cell_values: List[str], abbrev_set: List[set]):
-    """ During postprocessing, fuzzy match failed, try some common equivalent synonyms
+    """ During postprocessing, try some common equivalent synonyms
     """
-    lower_value = value.lower()
-    lower_cell_values = [str(v).lower() for v in cell_values]
+    value = value.lower()
+    lower_cell_values = [v.lower() for v in cell_values]
     for s in abbrev_set:
-        if lower_value in s:
+        if value in s:
+            if value in lower_cell_values:
+                return str(cell_values[lower_cell_values.index(value)])
             for v in s:
                 if v in lower_cell_values:
-                    index = lower_cell_values.index(v)
-                    return str(cell_values[index])
+                    return str(cell_values[lower_cell_values.index(v)])
     return None
 
 
@@ -156,15 +161,15 @@ def try_fuzzy_match(cased_value: str, cell_values: List[str], raw_question: str,
     """
     if len(cell_values) == 0: # no cell values available or LIKE operator avoids search for database
         cased_value = extract_raw_question_span(cased_value, raw_question)
-    else: # fuzzy match, choose the most similar cell value
+    else:
         cell_values = [str(v) for v in cell_values]
-        matched_value, matched_score = process.extractOne(cased_value, cell_values)
-        if matched_score >= score:
-            cased_value = matched_value
-        else:
-            retrieve_value = search_for_synonyms(cased_value, cell_values, abbrev_set)
-            if retrieve_value is not None:
-                cased_value = retrieve_value
+        syn_value = search_for_synonyms(cased_value, cell_values, abbrev_set)
+        if syn_value is not None: # some abbreviation
+            cased_value = syn_value
+        else: # fuzzy match, choose the most similar cell value
+            matched_value, matched_score = process.extractOne(cased_value, cell_values)
+            if matched_score >= score:
+                cased_value = matched_value
             else:
                 cased_value = extract_raw_question_span(cased_value, raw_question)
     return cased_value.strip()

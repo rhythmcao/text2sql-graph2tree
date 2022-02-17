@@ -212,7 +212,7 @@ class ValueProcessor():
                 if cell_type == 'number' and is_number(normed_value_str):
                     output = int(float(normed_value_str)) if is_int(normed_value_str) else float(normed_value_str)
                 elif cell_type == 'number' and parse_number(True): pass
-                elif cell_type == 'time' and parse_number(True): value_str = str(value_str)
+                elif cell_type == 'time' and parse_number(True): output = str(output)
                 elif cell_type == 'time' and parse_datetime(): pass
                 else: # text values
                     if is_number(normed_value_str): # some text appears like numbers such as phone number

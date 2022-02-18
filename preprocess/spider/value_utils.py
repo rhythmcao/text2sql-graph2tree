@@ -5,7 +5,7 @@ from itertools import combinations
 from collections import Counter
 from asdl.transition_system import SelectValueAction
 from preprocess.process_utils import is_number, is_int, is_date, BOOL_TRUE, BOOL_FALSE
-from preprocess.process_utils import map_en_string_to_number, map_en_string_to_date, number_string_normalization, try_fuzzy_match
+from preprocess.process_utils import map_en_string_to_number, map_en_string_to_date, number_string_normalization, try_fuzzy_match, extract_raw_question_span
 from preprocess.process_utils import ValueCandidate, State, SQLValue
 from utils.constants import TEST
 
@@ -216,7 +216,7 @@ class ValueProcessor():
                 elif cell_type == 'time' and parse_datetime(): pass
                 else: # text values
                     if is_number(normed_value_str): # some text appears like numbers such as phone number
-                        output = str(normed_value_str)
+                        output = extract_raw_question_span(cased_value_str, raw_question)
                     else:
                         output = try_fuzzy_match(cased_value_str, ([] if like_op else cell_values), raw_question, ABBREV_SET, 62)
         # add quote and wild symbol

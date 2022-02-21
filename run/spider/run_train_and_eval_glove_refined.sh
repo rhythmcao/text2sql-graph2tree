@@ -1,5 +1,5 @@
-task=gtl
-seed=$2
+task=refined_gtl
+seed=999
 device=0
 ddp='' # --ddp
 testing='' # --testing
@@ -48,10 +48,8 @@ beam_size=5
 
 gtl_size=4
 n_best=1
-ts_order=random
-uts_order=enum
 
-python -u scripts/spider/train_and_eval.py --task $task --dataset 'spider' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
+python -u scripts/spider/train_and_eval_refined.py --task $task --dataset 'spider' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
     --embed_size $embed_size --encode_method $encode_method --local_and_nonlocal $local_and_nonlocal --gnn_hidden_size $gnn_hidden_size --gnn_num_layers $gnn_num_layers --num_heads $num_heads \
     --schema_aggregation $schema_aggregation --value_aggregation $value_aggregation --score_function $score_function \
     $relation_share_layers $relation_share_heads --dropout $dropout --attn_drop $attn_drop --drop_connect $drop_connect \
@@ -59,4 +57,4 @@ python -u scripts/spider/train_and_eval.py --task $task --dataset 'spider' --see
     --action_embed_size $action_embed_size --field_embed_size $field_embed_size --type_embed_size $type_embed_size $struct_feeding \
     --batch_size $batch_size --test_batch_size $test_batch_size --grad_accumulate $grad_accumulate --lr $lr --l2 $l2 --warmup_ratio $warmup_ratio --lr_schedule $lr_schedule \
     --smoothing $smoothing --eval_after_epoch $eval_after_epoch --max_epoch $max_epoch --max_norm $max_norm --beam_size $beam_size \
-    --gtl_size $gtl_size --n_best $n_best --ts_order $ts_order --uts_order $uts_order
+    --gtl_size $gtl_size --n_best $n_best --ts_order 'random' --uts_order 'enum'

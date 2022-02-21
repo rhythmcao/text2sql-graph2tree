@@ -23,7 +23,7 @@ def hyperparam_path_text2sql(args):
     else:
         exp_path += 'ts_%s__uts_%s' % (args.ts_order, args.uts_order)
     exp_path += '__emb_%s' % (args.embed_size) if args.plm is None else '__plm_%s' % (args.plm)
-    # exp_path += '__view_%s' % (args.local_and_nonlocal)
+    exp_path += '__view_%s' % (args.local_and_nonlocal)
     # exp_path += '__gnn_%s_x_%s' % (args.gnn_hidden_size, args.gnn_num_layers)
     # exp_path += '__sl' if args.relation_share_layers else ''
     # exp_path += '__hd_%s' % (args.num_heads)
@@ -41,7 +41,7 @@ def hyperparam_path_text2sql(args):
     # exp_path += '__te_%s' % (args.type_embed_size)
     # exp_path += '__cf' if args.context_feeding else ''
     exp_path += '__sf' if args.struct_feeding else ''
-    
+
     # training params
     exp_path += '__bs_%s' % (args.batch_size)
     exp_path += '__lr_%s' % (args.lr) if args.plm is None else '__lr_%s_ld_%s' % (args.lr, args.layerwise_decay)

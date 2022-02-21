@@ -1,4 +1,4 @@
-task=debug
+task=gtl
 seed=999
 device=0
 ddp='--ddp' # --ddp
@@ -9,7 +9,7 @@ read_canonical_action_path=''
 
 plm=electra-large-discriminator
 encode_method=lgesql # irnet, rgatsql, lgesql
-local_and_nonlocal=msde # mmc, msde, local, global
+local_and_nonlocal=$1 # mmc, msde, local, global
 gnn_hidden_size=512
 gnn_num_layers=8
 num_heads=8
@@ -36,7 +36,7 @@ struct_feeding='--struct_feeding'
 
 batch_size=20
 test_batch_size=50
-grad_accumulate=1
+grad_accumulate=2
 lr=1e-4
 layerwise_decay=0.8
 l2=0.1

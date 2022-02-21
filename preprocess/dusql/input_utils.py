@@ -1,5 +1,5 @@
 #coding=utf8
-import re, json
+import re, json, jieba
 import numpy as np
 from LAC import LAC
 import cn2an
@@ -179,7 +179,7 @@ class InputProcessor():
         # split metrics, add whitespace before, 千米/千克/千瓦/kg/km/cm/mm/app/g/l/t/m
         question = split_metric1(question)
         question = split_metric2(question)
-        question = re.sub(r'top', 'top ', question, flags=re.I)
+        question = re.sub(r'top(\d+)', lambda match_obj: 'top ' + match_obj.group(1), question, flags=re.I)
         # add whitespace before and after english/number/._-%百万亿 for better tokenization
         question = split_alpha(question)
         question = re.sub(r'\s+', ' ', question)

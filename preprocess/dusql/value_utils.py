@@ -8,8 +8,9 @@ from decimal import Decimal
 from fuzzywuzzy import process
 from itertools import combinations
 from asdl.transition_system import SelectValueAction
+from collections import Counter
 from utils.constants import DATASETS
-from preprocess.process_utils import is_number, is_int, ValueCandidate, State, SQLValue
+from preprocess.process_utils import is_number, is_int, ValueCandidate, State, SQLValue, BOOL_TRUE_ZH, BOOL_FALSE_ZH
 from preprocess.dusql.input_utils import quote_normalization, load_db_contents, extract_db_cells
 
 SYNONYM_SETS = [
@@ -151,10 +152,10 @@ class ValueProcessor():
         # chinese chars do not have whitespace, while whitespace is needed between english words
         # when ValueCandidate is constructed in models/encoder/auxiliary.py, whitespaces are inserted in matched_value
         raw_value = re.sub(r'([^a-zA-Z])(\s+)([^a-zA-Z])', lambda match_obj: match_obj.group(1) + match_obj.group(3), raw_value)
-        value = self.obtain_possible_value(raw_value, db, state, entry)
+        value = self.postprocess_raw_value_str(raw_value, db, state, entry)
         return value
 
-    def obtain_possible_value(self, raw_value, db, state, entry):
+    def postprocess_raw_value_str(self, raw_value, db, state, entry):
         value = ''
         clause, col_id = state.track.split('->')[-1], state.col_id
         if col_id == 'TIME_NOW':
@@ -164,44 +165,34 @@ class ValueProcessor():
             col_type = db['column_types'][col_id]
             cell_values = self.contents[db['db_id']][col_id]
 
-        def word_to_number(val, name, force=False):
+        def word_to_number(val, name, time_return=True):
             if re.search(r'item', val): return False
-            if not force and (':' in val or '/' in val or '_' in val \
-                or re.search(r'(上午|下午|晚上|时|点|分|秒|月|日|号)', val) or val.count('-') > 1 or val.count('.') > 1):
-                return False
+            if time_return and (':' in val or '/' in val or '_' in val \
+                or re.search(r'(上午|下午|晚上|时|点|分|秒|月|日|号)', val) \
+                    or val.count('-') > 1 or val.count('.') > 1): return False
             if '-' in val and val.count('-') == 1:
-                split_val = val.split('-')
-                split_val = [v for v in split_val if v.strip()]
+                split_val = [v for v in val.split('-') if v.strip()]
                 # determine negative or between x and y
                 val = split_val if len(split_val) > 1 else [val]
             elif '~' in val and val.count('~') == 1:
-                val = val.split('~')
+                val = [v for v in val.split('~') if v.strip()]
             elif '到' in val and val.count('到') == 1:
-                val = val.split('到')
-            else:
-                val = [val]
+                val = [v for v in val.split('到') if v.strip()]
+            else: val = [val]
+
             values = []
             for v in val:
-                percent = False
-                if v.startswith('百分之'):
-                    percent = True
-                    v = v[3:]
-                if v.endswith('%'):
-                    percent = True
-                    v = v.rstrip('%')
+                percent = v.startswith('百分之') or v.endswith('%')
                 height = '米' in v and '千米' not in v and '平米' not in v
-                v = v.replace('k', '千').replace('w', '万').replace('米', '点')
+                v = v.lstrip('百分之').rstrip('%').replace('k', '千').replace('w', '万').replace('米', '点')
                 v = re.sub(r'[^0-9\.\-{}]'.format(RESERVE_CHARS), '', v)
-                if is_number(v):
-                    v = float(v)
+                if is_number(v): v = float(v)
                 else:
-                    try:
-                        v = word2num(v)
+                    try: v = word2num(v)
                     except: return False
                 v = float(Decimal(str(v)) * Decimal('100')) if height else float(Decimal(str(v)) * Decimal('0.01')) if percent else float(v)
                 v = int(v) if is_int(v) else float(v)
-                if '(' in name:
-                    # determine the metric in the column name wrapped by (万亿)
+                if '(' in name: # metric exist in the column name, e.g. 投资额(万亿)
                     metric = re.search(r'\((.*?)\)', name).group(1)
                     if '亿' in metric or '万' in metric:
                         factor = 1e8 if '亿' in metric else 1e4
@@ -213,60 +204,63 @@ class ValueProcessor():
             return True
 
         def word_to_time(val):
-            nonlocal value
             try:
                 result = jio.parse_time(val)
-                v = extract_time(result, val)
-                if v is None:
-                    return False
-                else:
-                    value = v
-                return True
-            except: return False
+                result = extract_time(result, val)
+                if result is not None:
+                    nonlocal value
+                    value = result
+                    return True
+            except: pass
+            return False
 
-        def try_mapping_items(val):
-            nonlocal value
+        def try_item_mappings(val):
             if 'item' in val:
                 idx = re.sub(r'[^0-9]', '', val[val.index('item') + 4:])
-                if not is_int(idx): return False
-                idx = int(idx)
-                if 0 <= idx < len(entry['item_mapping_reverse']):
-                    value = entry['item_mapping_reverse'][idx]
-                    return True
+                if is_int(idx):
+                    idx = int(idx)
+                    if 0 <= idx < len(entry['item_mapping_reverse']):
+                        nonlocal value
+                        value = entry['item_mapping_reverse'][idx]
+                        return True
             return False
 
         if clause == 'limit': # value should be integers
             if is_number(raw_value):
                 value = int(float(raw_value))
-            elif word_to_number(raw_value, col_name, force=True):
+            elif word_to_number(raw_value, col_name, time_return=False):
                 value = int(float(value))
             else: value = 1 # for all other cases, use 1
         elif clause == 'having': # value should be numbers
             if is_number(raw_value):
                 value = int(float(raw_value)) if is_int(raw_value) else float(raw_value)
-            elif word_to_number(raw_value, col_name, force=True): pass
+            elif word_to_number(raw_value, col_name, time_return=False): pass
             else: value = 1
         else: # WHERE clause
-
             def try_binary_values(val):
-                nonlocal value
-                val = '否' if is_number(val) and float_equal(0, val) else '是'
-                if '是' in cell_values or '否' in cell_values:
-                    value = val if val in ['是', '否'] else '是'
-                    return True
-                elif '有' in cell_values or '无' in cell_values:
-                    value = {'是': '有', '否': '无'}[val] if val in ['是', '否'] else '有'
+                if val in ['是', '否']:
+                    evidence = []
+                    for cv in cell_values:
+                        for idx, (t, f) in enumerate(zip(BOOL_TRUE_ZH, BOOL_FALSE_ZH)):
+                            if cv == t or cv == f:
+                                evidence.append(idx)
+                                break
+                    nonlocal value
+                    if len(evidence) > 0:
+                        bool_idx = Counter(evidence).most_common(1)[0][0]
+                        value = BOOL_TRUE_ZH[bool_idx] if val == '是' else BOOL_FALSE_ZH[bool_idx]
+                    else: value = val
                     return True
                 return False
 
             if col_type == 'number':
-                if word_to_number(raw_value, col_name, force=True): pass
-                elif try_mapping_items(raw_value): pass
+                if word_to_number(raw_value, col_name, time_return=False): pass
+                elif try_item_mappings(raw_value): pass
                 else: value = 1
             elif col_type == 'time':
-                if word_to_number(raw_value, col_name, force=False): pass
+                if word_to_number(raw_value, col_name, time_return=True): pass
                 elif word_to_time(raw_value): pass
-                else: value = 1
+                else: value = str(raw_value)
             elif col_type == 'binary' and try_binary_values(raw_value): pass
             else:
                 like_op = 'like' in state.cmp_op
@@ -275,6 +269,7 @@ class ValueProcessor():
                     value = most_similar[0] if most_similar[1] > 50 else raw_value
                 else: value = raw_value
         return str(value) if is_number(value) else "'" + value + "'"
+
 
     def extract_values(self, entry: dict, db: dict, verbose=False):
         """ Extract values(class SQLValue) which will be used in AST construction,
@@ -1157,7 +1152,7 @@ if __name__ == '__main__':
         flag = True
         for pair in pairs:
             gold_value, state, match_value = pair
-            pred_value = processor.obtain_possible_value(match_value, db, state, ex)
+            pred_value = processor.postprocess_raw_value_str(match_value, db, state, ex)
             count += 1
             if _equal(pred_value, gold_value):
                 correct += 1

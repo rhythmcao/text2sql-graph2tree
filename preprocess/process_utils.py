@@ -8,8 +8,10 @@ from word2number import w2n
 from collections import namedtuple
 
 QUOTATION_MARKS = ["'", '"', '`', '‘', '’', '“', '”', '``', "''", "‘‘", "’’"]
-BOOL_TRUE = ['Y', 'y', 'T', 't', '1', 1, '是', '对', 'yes', 'Yes', 'true', 'True', 'YES', 'TRUE']
-BOOL_FALSE = ['N', 'n', 'F', 'f', '0', 0, '否', '错', 'no', 'No', 'false', 'False', 'NO', 'FALSE']
+BOOL_TRUE = ['Y', 'y', 'T', 't', '1', 1, 'yes', 'Yes', 'true', 'True', 'YES', 'TRUE']
+BOOL_FALSE = ['N', 'n', 'F', 'f', '0', 0, 'no', 'No', 'false', 'False', 'NO', 'FALSE']
+BOOL_TRUE_ZH = ['1', 1, '是', '对', '有']
+BOOL_FALSE_ZH = ['0', 0, '否', '错', '无']
 
 ORDINAL = ['zeroth', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
 FREQUENCY = ['once', 'twice', 'thrice']

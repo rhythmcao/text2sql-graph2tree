@@ -16,12 +16,10 @@ def set_logger(exp_path, testing=False, rank=0):
     logger = logging.getLogger('mylogger')
     level = logging.DEBUG if rank == 0 else logging.ERROR
     logger.setLevel(level)
-    if testing:
-        fileHandler = logging.FileHandler('%s/log_test.txt' % (exp_path), mode='w')
-    else:
-        fileHandler = logging.FileHandler('%s/log_train.txt' % (exp_path), mode='w')
-    fileHandler.setFormatter(logFormatter)
-    logger.addHandler(fileHandler)
+    if rank == 0:
+        fileHandler = logging.FileHandler('%s/log_%s.txt' % (exp_path, ('test' if testing else 'train')), mode='w')
+        fileHandler.setFormatter(logFormatter)
+        logger.addHandler(fileHandler)
     consoleHandler = logging.StreamHandler(sys.stdout)
     consoleHandler.setFormatter(logFormatter)
     logger.addHandler(consoleHandler)

@@ -195,9 +195,25 @@ class ValueProcessor():
                 if '(' in name: # metric exist in the column name, e.g. 投资额(万亿)
                     metric = re.search(r'\((.*?)\)', name).group(1)
                     if '亿' in metric or '万' in metric:
-                        factor = 1e8 if '亿' in metric else 1e4
+                        factor = 1e12 if '亿' in metric and '万' in metric else 1e8 if '亿' in metric else 1e4
                         if is_int(v) and v % factor == 0:
                             v //= factor
+                if '届' in name and cell_values: # e.g. 第十八届, 第? num/word 届?
+                    templates = []
+                    for cv in cell_values:
+                        mode = [False, False, False]
+                        if cv.startswith('第'):
+                            mode[0] = True
+                        if re.search(r'\d+', cv): # number instead of word
+                            mode[1] = True
+                        if '届' in cv:
+                            mode[2] = True
+                        templates.append(tuple(mode))
+                    counter = Counter(templates)
+                    flags = counter.most_common(1)[0][0]
+                    v = str(v) if flags[1] else num2word(v, 'low')
+                    v = '第' + v if flags[0] else v
+                    v = v + '届' if flags[2] else v
                 values.append(str(v))
             nonlocal value
             value = '-'.join(values)

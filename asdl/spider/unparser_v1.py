@@ -115,7 +115,7 @@ class UnParser():
                     table_names.append(table_name)
             if len(table_names) > 1:
                 cond_field = from_ast[self.grammar.get_field_by_text('condition from')][0]
-                from_cond_str = ' ON ' + self.unparse_condition(cond_field.value, db, value_candidates, 'from', *args, **kargs)
+                from_cond_str = ' ON ' + self.unparse_condition(cond_field.value, db, value_candidates, entry, 'from', *args, **kargs)
             return ' JOIN '.join(table_names) + from_cond_str
         else:
             return '( ' + self.unparse_sql(from_ast[self.grammar.get_field_by_text('sql from_sql')][0].value, db, value_candidates, entry, *args, **kargs) + ' )'

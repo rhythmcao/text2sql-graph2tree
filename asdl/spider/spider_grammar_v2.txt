@@ -91,4 +91,4 @@ col_unit = UnaryColumnUnit(agg_op agg_op, col_id col_id)
 
 agg_op = None | Max | Min | Count | Sum | Avg
 
-unit_op = Minus | Plus | Divide
+unit_op = Minus | Plus | Times | Divide

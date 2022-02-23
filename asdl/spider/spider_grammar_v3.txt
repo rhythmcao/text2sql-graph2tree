@@ -35,12 +35,11 @@
 ##########################################################################
 # Some limitations
 # 1. distinct flag is not considered
-# 2. value is not predicted
-# 3. at most one INTERSECT/UNION/Except
-# 4. does not handle the JOIN of two same tables in FROM clause
-# 5. for groupby items, we use col_id, while col_unit for other clauses
+# 2. at most one INTERSECT/UNION/Except
+# 3. does not handle the JOIN of two same tables in FROM clause
+# 4. for groupby items, we use col_id, while col_unit for other clauses
 
-tab_id, col_id
+tab_id, col_id, val_id
 
 sql = Intersect(sql_unit left_sql_unit, sql_unit right_sql_unit)
         | Union(sql_unit left_sql_unit, sql_unit right_sql_unit)
@@ -80,20 +79,22 @@ groupby = GroupByColumn[col_id col_id:1,3](col_id col_id)
         | GroupByHavingColumn[col_id col_id:1,2](col_id col_id, condition having)
 
 orderby = OrderByColumn[col_unit col_unit:1,3](col_unit col_unit, order order)
-        | OrderByLimitColumnOne(col_unit col_unit, order order)
+        | OrderByLimitColumnOne(col_unit col_unit, order order, val_id limit)
 
 order = Asc | Desc
 
 condition = AndCondition[condition condition:2,4](condition condition)
         | OrConditionTwo(condition condition, condition condition)
-        | CmpCondition(cmp_op cmp_op, col_unit col_unit)
-        | CmpSQLCondition(cmp_op cmp_op, col_unit col_unit, sql cond_sql)
+        | BetweenCondition(col_unit col_unit, value left_value, value right_value)
+        | CmpCondition(cmp_op cmp_op, col_unit col_unit, value value)
 
-cmp_op = Between | Equal | NotEqual | GreaterThan | GreaterEqual | LessThan | LessEqual | Like | NotLike | In | NotIn
+cmp_op = Equal | NotEqual | GreaterThan | GreaterEqual | LessThan | LessEqual | Like | NotLike | In | NotIn
+
+value = SQLValue(sql value_sql) | LiteralValue(val_id val_id) | ColumnValue(col_id col_id)
 
 col_unit = UnaryColumnUnit(agg_op agg_op, col_id col_id)
         | BinaryColumnUnit(agg_op agg_op, unit_op unit_op, col_id left_col_id, col_id right_col_id)
 
 agg_op = None | Max | Min | Count | Sum | Avg
 
-unit_op = Minus | Plus | Times | Divide
+unit_op = Minus | Plus | Divide

@@ -11,9 +11,12 @@ class SQLTransitionSystem(TransitionSystem):
         if grammar.grammar_version == '1':
             from asdl.spider.parser_v1 import Parser
             from asdl.spider.unparser_v1 import UnParser
-        else:
+        elif grammar.grammar_version == '2':
             from asdl.spider.parser_v2 import Parser
             from asdl.spider.unparser_v2 import UnParser
+        else:
+            from asdl.spider.parser_v3 import Parser
+            from asdl.spider.unparser_v3 import UnParser
         self.parser = Parser(self.grammar)
         if table_path is None:
             table_path = os.path.join(DATASETS['spider']['data'], 'tables.bin')

@@ -60,22 +60,22 @@ sql_unit = FromSelectWhereGroupByOrderBy(from from, select select, condition whe
 # [field:,high]: low is default to 1
 # [field:low,]: high is default to pre-defined threshold, e.g. 10
 
-select = SelectColumn[col_unit col_unit:1,6](col_unit col_unit)
+select = SelectColumn[col_unit col_unit:1,5](col_unit col_unit)
 
 from = FromTableOne(tab_id tab_id)
         | FromTable[tab_id tab_id:2,7](tab_id tab_id, condition from)
         | FromSQL(sql from_sql)
 
 groupby = GroupByColumn[col_id col_id:1,3](col_id col_id)
-        | GroupByHavingColumn[col_id col_id:1,3](col_id col_id, condition having)
+        | GroupByHavingColumn[col_id col_id:1,2](col_id col_id, condition having)
 
 orderby = OrderByColumn[col_unit col_unit:1,3](col_unit col_unit, order order)
-        | OrderByLimitColumn[col_unit col_unit:1,3](col_unit col_unit, order order, val_id limit)
+        | OrderByLimitColumnOne(col_unit col_unit, order order, val_id limit)
 
 order = Asc | Desc
 
 condition = AndCondition[condition condition:2,6](condition condition)
-        | OrCondition[condition condition:2,3](condition condition)
+        | OrConditionTwo(condition condition, condition condition)
         | BetweenCondition(col_unit col_unit, value left_value, value right_value)
         | CmpCondition(cmp_op cmp_op, col_unit col_unit, value value)
 
@@ -88,4 +88,4 @@ col_unit = UnaryColumnUnit(agg_op agg_op, col_id col_id)
 
 agg_op = None | Max | Min | Count | Sum | Avg
 
-unit_op = Minus | Plus | Times | Divide
+unit_op = Minus | Plus | Divide

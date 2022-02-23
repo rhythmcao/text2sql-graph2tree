@@ -3,6 +3,8 @@ import os, json, re, sys, sqlite3
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import shutil, collections, itertools
 from utils.constants import DATASETS
+from preprocess.cspider_raw.process_sql import get_sql
+from preprocess.cspider_raw.parse_raw_json import get_schemas_from_json, Schema
 
 
 def amend_primary_keys(tables: list, verbose: bool = True):
@@ -146,10 +148,35 @@ def amend_boolean_types(tables: list, db_dir: str = 'data/cspider_raw/database',
         print('{} column types are changed to boolean'.format(count))
     return tables
 
-def amend_examples_in_dataset(dataset, tables, verbose=True):
-    for ex in dataset:
-        
+question_query_mappings = {
+    "最近签订合同的公司的类型描述是什么？": "SELECT T1.company_type FROM Third_Party_Companies AS T1 JOIN Maintenance_Contracts AS T2 ON T1.company_id  =  T2.maintenance_contract_company_id ORDER BY T2.contract_end_date DESC LIMIT 1",
+    "哪位工程师去过的次数最多？显示工程师id、名字和姓氏。": "SELECT T1.engineer_id ,  T1.first_name ,  T1.last_name FROM Maintenance_Engineers AS T1 JOIN Engineer_Visits AS T2 ON T1.engineer_id = T2.engineer_id GROUP BY T1.engineer_id ORDER BY count(*) DESC LIMIT 1",
+    "哪些产品被最少的客户投诉？": "SELECT DISTINCT t1.product_name FROM products AS t1 JOIN complaints AS t2 ON t1.product_id  =  t2.product_id JOIN customers AS t3 ON t2.customer_id = t3.customer_id GROUP BY t3.customer_id ORDER BY count(*) LIMIT 1",
+    "返回提交最少客户投诉的产品名称。": "SELECT DISTINCT t1.product_name FROM products AS t1 JOIN complaints AS t2 ON t1.product_id  =  t2.product_id JOIN customers AS t3 ON t2.customer_id = t3.customer_id GROUP BY t3.customer_id ORDER BY count(*) LIMIT 1",
+    "治疗费用低于平均的专家的名字和姓氏是什么？": "SELECT DISTINCT T1.first_name ,  T1.last_name FROM Professionals AS T1 JOIN Treatments AS T2 ON T1.professional_id = T1.professional_id WHERE cost_of_treatment  <  ( SELECT avg(cost_of_treatment) FROM Treatments )",
+    "哪些专家的治疗费用低于平均水平？给出名字和姓氏。": "SELECT DISTINCT T1.first_name ,  T1.last_name FROM Professionals AS T1 JOIN Treatments AS T2 ON T1.professional_id = T1.professional_id WHERE cost_of_treatment  <  ( SELECT avg(cost_of_treatment) FROM Treatments )",
+    "参与任何一个课程次数最多的学生的姓名、中间名、姓氏、id和参与次数是多少？": "SELECT T1.first_name ,  T1.middle_name ,  T1.last_name ,  T1.student_id ,  count(*) FROM Students AS T1 JOIN Student_Enrolment AS T2 ON T1.student_id  =  T2.student_id GROUP BY T1.student_id ORDER BY count(*) DESC LIMIT 1"
+}
 
+question_query_replacement = {
+    "哪些学生报名参加任何项目的次数最多？列出id、名字、中间名、姓氏、参加次数和学生id。":
+    (
+        "哪些学生报名参加任何项目的次数最多？列出学生id、名字、中间名、姓氏和参加次数。",
+        "SELECT T1.student_id ,  T1.first_name ,  T1.middle_name ,  T1.last_name ,  count(*) FROM Students AS T1 JOIN Student_Enrolment AS T2 ON T1.student_id  =  T2.student_id GROUP BY T1.student_id ORDER BY count(*) DESC LIMIT 1"
+    )
+}
+
+def amend_examples_in_dataset(dataset, schemas, tables, verbose=True):
+    for ex in dataset:
+        if ex['question'] in question_query_mappings:
+            ex['query'] = question_query_mappings[ex['question']]
+            db_id = ex['db_id']
+            ex['sql'] = get_sql(Schema(schemas[db_id], tables[db_id]), ex['query'])
+        elif ex['question'] in question_query_replacement:
+            ex['question'] = question_query_replacement[ex['question']][0]
+            ex['query'] = question_query_replacement[ex['question']][1]
+            db_id = ex['db_id']
+            ex['sql'] = get_sql(Schema(schemas[db_id], tables[db_id]), ex['query'])
 
 if __name__ == '__main__':
 
@@ -164,6 +191,7 @@ if __name__ == '__main__':
         shutil.copyfile(table_path, origin_table_path)
     json.dump(tables, open(table_path, 'w'), indent=4)
 
+    schemas, _, tables = get_schemas_from_json(table_path)
     for data_split in ['train', 'dev']:
         dataset_path = os.path.join(data_dir, data_split + '.json')
         origin_dataset_path = os.path.join(data_dir, data_split + '.original.json')
@@ -172,5 +200,5 @@ if __name__ == '__main__':
         else:
             dataset = json.load(open(dataset_path, 'r'))
             shutil.copyfile(dataset_path, origin_dataset_path)
-        dataset = amend_examples_in_dataset(dataset, tables, verbose=True)
+        dataset = amend_examples_in_dataset(dataset, schemas, tables, verbose=True)
         json.dump(dataset, open(dataset_path, 'w'), indent=4)

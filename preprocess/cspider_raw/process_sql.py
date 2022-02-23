@@ -27,7 +27,6 @@
 import json
 import sqlite3
 from nltk import word_tokenize
-import pdb
 
 CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
 JOIN_KEYWORDS = ('join', 'on', 'as')
@@ -65,7 +64,7 @@ class Schema:
     def _map(self, schema):
         idMap = {'*': "__all__"}
         id = 1
-        for key, vals in schema.iteritems():
+        for key, vals in schema.items():
             for val in vals:
                 idMap[key.lower() + "." + val.lower()] = "__" + key.lower() + "." + val.lower() + "__"
                 id += 1
@@ -156,13 +155,116 @@ def scan_alias(toks):
         alias[toks[idx+1]] = toks[idx-1]
     return alias
 
+def check_contradiction(toks):
+    as_idxs = [idx for idx, tok in enumerate(toks) if tok == 'as']
+    alias = {}
+    for idx in as_idxs:
+        a = toks[idx+1]
+        if a in alias and alias[a] != toks[idx-1]:
+            return True
+        alias[a] = toks[idx-1]
+    return False
+
+def toks2nested(toks):
+    """
+        Determine the scope for each sub-sql
+        mapping [select, count, (, c1, ), from, (, select c1, c2, from, t, ), ... ] into
+        [select, count, (, c1, ), from, [select, c1, c2, from, t], ... ]
+    """
+    def detect_sql(idx):
+        count, sql_list = 0, []
+        while idx < len(toks):
+            if toks[idx] == '(':
+                count += 1
+                if toks[idx + 1] == 'select':
+                    sub_sql_list, idx = detect_sql(idx + 1)
+                    count -= 1
+                    sql_list.append(sub_sql_list)
+                else:
+                    sql_list.append('(')
+            elif toks[idx] == ')':
+                count -= 1
+                if count < 0:
+                    return sql_list, idx
+                else:
+                    sql_list.append(')')
+            else:
+                sql_list.append(toks[idx])
+            idx += 1
+        return sql_list, idx
+
+    def intersect_union_except(tok_list):
+        for idx, tok in enumerate(tok_list):
+            if type(tok) == list:
+                new_tok = intersect_union_except(tok)
+                tok_list[idx] = new_tok
+        for op in ['intersect', 'union', 'except']:
+            if op in tok_list:
+                idx = tok_list.index(op)
+                tok_list = [tok_list[:idx]] + [op] + [tok_list[idx+1:]]
+                break
+        return tok_list
+
+    try:
+        nested_toks, _ = detect_sql(0)
+        # not all sqls are wrapped with (), e.g. sql1 intersect sql2
+        # add wrapper for each sql on the left and right handside of intersect/union/except
+        nested_toks = intersect_union_except(nested_toks)
+        return nested_toks
+    except:
+        print('Something unknown happened when transforming %s' % (' '.join(toks)))
+        return None
+
+def reassign_table_alias(nested_toks, index):
+    current_map = {} # map old alias in the current sql to new alias in global map
+    as_idxs = [idx for idx, tok in enumerate(nested_toks) if tok == 'as']
+    for idx in as_idxs:
+        index += 1 # add 1 to global index for table alias before assignment
+        assert nested_toks[idx+1] not in current_map
+        current_map[nested_toks[idx+1]] = 't' + str(index)
+        nested_toks[idx+1] = 't' + str(index)
+    for j, tok in enumerate(nested_toks):
+        if type(tok) == list:
+            new_tok, index = reassign_table_alias(tok, index)
+            nested_toks[j] = new_tok
+        elif '.' in tok:
+            for alias in current_map.keys():
+                if tok.startswith(alias + '.'):
+                    nested_toks[j] = current_map[alias] + '.' + tok[tok.index('.')+1:]
+                    break
+    return nested_toks, index
+
+def normalize_table_alias(toks):
+    """ Make sure that different table alias are assigned to different tables """
+    if toks.count('select') == 1:
+        return toks # no nested sql, don't worry
+    elif toks.count('select') > 1:
+        flag = check_contradiction(toks)
+        if flag: # avoid unnecessary normalization process
+            nested_toks = toks2nested(toks)
+            index = 0 # global index for table alias
+            nested_toks, _ = reassign_table_alias(nested_toks, index)
+            def flatten(x):
+                if type(x) == list and ('intersect' in x or 'union' in x or 'except' in x):
+                    assert len(x) == 3 # sql1 union sql2
+                    return ['('] + flatten(x[0])[1:-1] + [x[1]] + flatten(x[2])[1:-1] + [')']
+                elif type(x) == list:
+                    return ['('] + [y for l in x for y in flatten(l)] + [')']
+                else:
+                    return [x]
+            toks = flatten(nested_toks)[1:-1]
+        return toks
+    else:
+        raise ValueError('Something wrong in sql because no select clause is found!')
+
 
 def get_tables_with_alias(schema, toks):
+    toks = normalize_table_alias(toks)
     tables = scan_alias(toks)
     for key in schema:
         assert key not in tables, "Alias {} has the same name in table".format(key)
         tables[key] = key
-    return tables
+    return tables, toks
 
 
 def parse_col(toks, start_idx, tables_with_alias, schema, default_tables=None):
@@ -258,7 +360,6 @@ def parse_table_unit(toks, start_idx, tables_with_alias, schema):
     """
     idx = start_idx
     len_ = len(toks)
-    #pdb.set_trace()
     key = tables_with_alias[toks[idx]]
 
     if idx + 1 < len_ and toks[idx+1] == "as":
@@ -551,7 +652,7 @@ def load_data(fpath):
 
 def get_sql(schema, query):
     toks = tokenize(query)
-    tables_with_alias = get_tables_with_alias(schema.schema, toks)
+    tables_with_alias, toks = get_tables_with_alias(schema.schema, toks)
     _, sql = parse_sql(toks, 0, tables_with_alias, schema)
 
     return sql

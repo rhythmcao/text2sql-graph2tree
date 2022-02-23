@@ -37,6 +37,14 @@ if __name__ == '__main__':
     train = json.load(open(os.path.join(data_dir, 'train.json'), 'rb'))
     dev = json.load(open(os.path.join(data_dir, 'dev.json'), 'rb'))
 
+    def create_gold_sql(choice):
+        gold_path = os.path.join(data_dir, choice + '_gold.sql')
+        dataset = train if choice == 'train' else dev
+        with open(gold_path, 'w') as of:
+            for ex in dataset:
+                of.write(' '.join(ex['query'].split('\t')) + '\t' + ex['db_id'] + '\n')
+        return
+
 
     def sql_to_ast_to_sql(dataset):
         recovered_sqls = []
@@ -48,7 +56,7 @@ if __name__ == '__main__':
         return recovered_sqls
 
 
-    def evaluate_sqls(recovered_sqls, choice='train', etype='exec'):
+    def evaluate_sqls(recovered_sqls, choice='train', etype='match'):
         pred_path = os.path.join(data_dir, choice + '_pred.sql')
         with open(pred_path, 'w') as of:
             for each in recovered_sqls:
@@ -60,9 +68,10 @@ if __name__ == '__main__':
             evaluate(gold_path, pred_path, DATASETS['cspider_raw']['database_testsuite'], etype, kmaps)
             sys.stdout = old_print
 
-
+    create_gold_sql('train')
     train_sqls = sql_to_ast_to_sql(train)
     evaluate_sqls(train_sqls, 'train', 'match')
 
+    create_gold_sql('dev')
     dev_sqls = sql_to_ast_to_sql(dev)
     evaluate_sqls(dev_sqls, 'dev', 'match')

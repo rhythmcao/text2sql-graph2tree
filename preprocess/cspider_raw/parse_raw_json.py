@@ -5,13 +5,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from preprocess.cspider_raw.process_sql import get_sql
 
 
-#TODO: update the following dirs
-sql_path = 'data/cspider_raw/dev.json'
-db_dir = 'data/cspider_raw/database/'
-output_file = 'dev.json'
-table_file = 'data/cspider_raw/tables.json'
-
-
 class Schema:
     """
     Simple schema which maps table&column to a unique identifier
@@ -71,27 +64,34 @@ def get_schemas_from_json(fpath):
     return schemas, db_names, tables
 
 
+if __name__ == '__main__':
 
-schemas, db_names, tables = get_schemas_from_json(table_file)
+    #TODO: update the following dirs
+    sql_path = 'data/cspider_raw/dev.json'
+    db_dir = 'data/cspider_raw/database/'
+    output_file = 'dev.json'
+    table_file = 'data/cspider_raw/tables.json'
 
-with open(sql_path) as inf:
-    sql_data = json.load(inf)
+    schemas, db_names, tables = get_schemas_from_json(table_file)
 
-sql_data_new = []
-for data in sql_data:
-    try:
-        db_id = data["db_id"]
-        schema = schemas[db_id]
-        table = tables[db_id]
-        schema = Schema(schema, table)
-        sql = data["query"]
-        sql_label = get_sql(schema, sql)
-        data["sql"] = sql_label
-        sql_data_new.append(data)
-    except:
-        print("db_id: ", db_id)
-        print("question:", data['question'])
-        print("sql: ", sql)
+    with open(sql_path) as inf:
+        sql_data = json.load(inf)
 
-with open(output_file, 'wt') as out:
-    json.dump(sql_data_new, out, sort_keys=True, indent=4, separators=(',', ': '))
+    sql_data_new = []
+    for data in sql_data:
+        try:
+            db_id = data["db_id"]
+            schema = schemas[db_id]
+            table = tables[db_id]
+            schema = Schema(schema, table)
+            sql = data["query"]
+            sql_label = get_sql(schema, sql)
+            data["sql"] = sql_label
+            sql_data_new.append(data)
+        except:
+            print("db_id: ", db_id)
+            print("question:", data['question'])
+            print("sql: ", sql)
+
+    with open(output_file, 'wt') as out:
+        json.dump(sql_data_new, out, sort_keys=True, indent=4, separators=(',', ': '))

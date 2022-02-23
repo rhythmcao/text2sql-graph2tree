@@ -41,6 +41,14 @@ if __name__ == '__main__':
     train = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb'))
     dev = pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
 
+    def create_gold_sql(choice):
+        gold_path = os.path.join(data_dir, choice + '_gold.sql')
+        dataset = train if choice == 'train' else dev
+        with open(gold_path, 'w') as of:
+            for ex in dataset:
+                of.write(ex['question_id'] + '\t' + ' '.join(ex['query'].split('\t')) + '\t' + ex['db_id'] + '\n')
+        return
+
 
     def sql_to_ast_to_sql(dataset):
         recovered_sqls = []
@@ -65,8 +73,10 @@ if __name__ == '__main__':
             evaluate(table_path, gold_path, pred_path, dataset='DuSQL')
             sys.stdout = old_print
 
+    create_gold_sql('train')
     train_sqls = sql_to_ast_to_sql(train)
     evaluate_sqls(train_sqls, 'train')
 
+    create_gold_sql('dev')
     dev_sqls = sql_to_ast_to_sql(dev)
     evaluate_sqls(dev_sqls, 'dev')

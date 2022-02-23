@@ -217,4 +217,4 @@ if __name__ == '__main__':
             dataset = json.load(open(dataset_path, 'r'))
             shutil.copyfile(dataset_path, origin_dataset_path)
         dataset = amend_examples_in_dataset(dataset, schemas, tables, verbose=True)
-        json.dump(dataset, open(dataset_path, 'w'), indent=4)
+        json.dump(dataset, open(dataset_path, 'w'), indent=4, ensure_ascii=False)

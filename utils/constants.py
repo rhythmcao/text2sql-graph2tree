@@ -2,7 +2,7 @@
 import os
 from collections import OrderedDict
 
-DEBUG = False
+DEBUG = True
 TEST = False
 
 PAD = '[PAD]'
@@ -63,10 +63,10 @@ DATASETS = {
         'database_testsuite': os.path.join('data', 'cspider', 'db_content.json'),
         'db_content': True,
         'bridge': False,
-        'value': False,
+        'value': True,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
-    'cspider-raw': {
+    'cspider_raw': {
         'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_grammar.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider_raw'),

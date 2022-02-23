@@ -62,7 +62,7 @@ sql_unit = FromSelectWhereGroupByOrderBy(from from, select select, condition whe
 # [field:low,]: high is default to pre-defined threshold, e.g. 10
 select = SelectColumn[col_unit col_unit:1,5](col_unit col_unit)
 
-from = FromTableOneZero(tab_id tab_id)
+from = FromTableOne(tab_id tab_id)
         | FromTableTwoOne(tab_id tab_id, tab_id tab_id, join join)
         | FromTableTwoTwo(tab_id tab_id, tab_id tab_id, join join, join join)
         | FromTableThreeTwo(tab_id tab_id, tab_id tab_id, tab_id tab_id, join join, join join)

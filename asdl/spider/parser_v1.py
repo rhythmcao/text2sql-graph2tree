@@ -132,7 +132,7 @@ class Parser():
             ast_fields[idx].add_value(col_node)
         return ast_node
 
-    def parse_from(self, from_clause: list, sql_values: set, track: str):
+    def parse_from(self, from_clause: dict, sql_values: set, track: str):
         """ Ignore from conditions, since it is not evaluated in evaluation script
         """
         table_units, from_conds = from_clause['table_units'], from_clause['conds']

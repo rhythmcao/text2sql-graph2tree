@@ -11,7 +11,7 @@ def get_input_processor(**kargs):
         from preprocess.dusql.input_utils import InputProcessor
     elif dataset == 'cspider':
         from preprocess.cspider.input_utils import InputProcessor
-    elif dataset == 'cspider-raw':
+    elif dataset == 'cspider_raw':
         from preprocess.cspider_raw.input_utils import InputProcessor
     elif dataset == 'wikisql':
         pass
@@ -54,7 +54,7 @@ def process_dataset_input(processor, dataset, tables, output_path=None, skip_lar
 if __name__ == '__main__':
 
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('--dataset', type=str, required=True, choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider', 'cspider-raw'])
+    arg_parser.add_argument('--dataset', type=str, required=True, choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider', 'cspider_raw'])
     arg_parser.add_argument('--data_split', type=str, required=True, choices=['train', 'dev', 'test'], help='dataset path')
     arg_parser.add_argument('--raw_table', action='store_true', help='use raw tables, need preprocessing')
     arg_parser.add_argument('--encode_method', choices=['irnet', 'rgatsql', 'lgesql'], default='lgesql', help='gnn model name')

@@ -155,7 +155,9 @@ question_query_mappings = {
     "返回提交最少客户投诉的产品名称。": "SELECT DISTINCT t1.product_name FROM products AS t1 JOIN complaints AS t2 ON t1.product_id  =  t2.product_id JOIN customers AS t3 ON t2.customer_id = t3.customer_id GROUP BY t3.customer_id ORDER BY count(*) LIMIT 1",
     "治疗费用低于平均的专家的名字和姓氏是什么？": "SELECT DISTINCT T1.first_name ,  T1.last_name FROM Professionals AS T1 JOIN Treatments AS T2 ON T1.professional_id = T1.professional_id WHERE cost_of_treatment  <  ( SELECT avg(cost_of_treatment) FROM Treatments )",
     "哪些专家的治疗费用低于平均水平？给出名字和姓氏。": "SELECT DISTINCT T1.first_name ,  T1.last_name FROM Professionals AS T1 JOIN Treatments AS T2 ON T1.professional_id = T1.professional_id WHERE cost_of_treatment  <  ( SELECT avg(cost_of_treatment) FROM Treatments )",
-    "参与任何一个课程次数最多的学生的姓名、中间名、姓氏、id和参与次数是多少？": "SELECT T1.first_name ,  T1.middle_name ,  T1.last_name ,  T1.student_id ,  count(*) FROM Students AS T1 JOIN Student_Enrolment AS T2 ON T1.student_id  =  T2.student_id GROUP BY T1.student_id ORDER BY count(*) DESC LIMIT 1"
+    "参与任何一个课程次数最多的学生的姓名、中间名、姓氏、id和参与次数是多少？": "SELECT T1.first_name ,  T1.middle_name ,  T1.last_name ,  T1.student_id ,  count(*) FROM Students AS T1 JOIN Student_Enrolment AS T2 ON T1.student_id  =  T2.student_id GROUP BY T1.student_id ORDER BY count(*) DESC LIMIT 1",
+    "找出在1960年和1961年都获奖的球员的名字和姓氏。": "SELECT T1.name_first , T1.name_last FROM player AS T1 JOIN player_award AS T2 ON T1.player_id = T2.player_id WHERE T2.year  =  1960 INTERSECT SELECT T1.name_first , T1.name_last FROM player AS T1 JOIN player_award AS T2 ON T1.player_id = T2.player_id WHERE T2.year  =  1961",
+    "哪位选手在1960和1961都获奖？返回他们的名字和姓氏。": "SELECT T1.name_first , T1.name_last FROM player AS T1 JOIN player_award AS T2 ON T1.player_id = T2.player_id WHERE T2.year  =  1960 INTERSECT SELECT T1.name_first , T1.name_last FROM player AS T1 JOIN player_award AS T2 ON T1.player_id = T2.player_id WHERE T2.year  =  1961"
 }
 
 question_query_replacement = {
@@ -167,16 +169,30 @@ question_query_replacement = {
 }
 
 def amend_examples_in_dataset(dataset, schemas, tables, verbose=True):
+    count = 0
     for ex in dataset:
         if ex['question'] in question_query_mappings:
+            if verbose:
+                print('DB:', ex['db_id'])
+                print('Question:', ex['question'])
+                print('SQL:', ex['query'])
+                print('SQL revised:', question_query_mappings[ex['question']])
             ex['query'] = question_query_mappings[ex['question']]
-            db_id = ex['db_id']
-            ex['sql'] = get_sql(Schema(schemas[db_id], tables[db_id]), ex['query'])
+            count += 1
         elif ex['question'] in question_query_replacement:
-            ex['question'] = question_query_replacement[ex['question']][0]
+            if verbose:
+                print('DB:', ex['db_id'])
+                print('Question:', ex['question'])
+                print('Question revised:', question_query_replacement[ex['question']][0])
+                print('SQL:', ex['query'])
+                print('SQL revised:', question_query_replacement[ex['question']][1])
             ex['query'] = question_query_replacement[ex['question']][1]
-            db_id = ex['db_id']
-            ex['sql'] = get_sql(Schema(schemas[db_id], tables[db_id]), ex['query'])
+            ex['question'] = question_query_replacement[ex['question']][0]
+            count += 1
+        db_id = ex['db_id']
+        ex['sql'] = get_sql(Schema(schemas[db_id], tables[db_id]), ex['query'])
+    print('Fix %d examples in the dataset' % (count))
+    return dataset
 
 if __name__ == '__main__':
 

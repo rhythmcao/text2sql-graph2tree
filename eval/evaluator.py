@@ -102,7 +102,7 @@ class Evaluator():
         elif dataset == 'cspider':
             from eval.cspider.evaluator import CSpiderEvaluator
             return CSpiderEvaluator
-        elif dataset == 'cspider-raw':
+        elif dataset == 'cspider_raw':
             from eval.cspider_raw.evaluator import CSpiderRawEvaluator
             return CSpiderRawEvaluator
         else:

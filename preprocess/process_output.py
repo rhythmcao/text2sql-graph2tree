@@ -10,7 +10,7 @@ def get_output_processor(dataset, table_path=None, db_dir=None):
         from preprocess.dusql.output_utils import OutputProcessor
     elif dataset == 'cspider':
         from preprocess.cspider.output_utils import OutputProcessor
-    elif dataset == 'cspider-raw':
+    elif dataset == 'cspider_raw':
         from preprocess.cspider_raw.output_utils import OutputProcessor
     elif dataset == 'wikisql':
         raise NotImplementedError
@@ -41,7 +41,7 @@ def process_dataset_output(processor, dataset, tables, output_path=None, skip_la
 if __name__ == '__main__':
 
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('--dataset', type=str, required=True, choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider', 'cspider-raw'])
+    arg_parser.add_argument('--dataset', type=str, required=True, choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider', 'cspider_raw'])
     arg_parser.add_argument('--data_split', type=str, required=True, choices=['train', 'dev', 'test'], help='dataset path')
     arg_parser.add_argument('--encode_method', type=str, required=True, choices=['irnet', 'ratsql', 'lgesql'])
     arg_parser.add_argument('--verbose', action='store_true', help='whether print processing information')

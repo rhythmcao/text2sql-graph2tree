@@ -72,6 +72,7 @@ DATASETS = {
         'data': os.path.join('data', 'cspider_raw'),
         'database': os.path.join('data', 'cspider_raw', 'database'),
         'database_testsuite': os.path.join('data', 'cspider_raw', 'database'),
+        'cached_dir': 'data/cspider_raw',
         'db_content': True,
         'bridge': False,
         'value': False,

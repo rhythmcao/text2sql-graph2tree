@@ -123,7 +123,7 @@ class OutputProcessor():
             elif type(val1) == dict:
                 used_schema = self.extract_subgraph_from_sql(val1, used_schema)
             if type(val2) == list:
-                used_schema['column'].add(val1[1])
+                used_schema['column'].add(val2[1])
             elif type(val2) == dict:
                 used_schema = self.extract_subgraph_from_sql(val2, used_schema)
         return used_schema

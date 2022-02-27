@@ -237,7 +237,7 @@ class InputProcessor():
         question_toks = entry['uncased_question_toks']
         question = ''.join(question_toks)
         table_toks, column_toks = db['table_toks'], db['column_toks']
-        table_names, column_names = db['table_names'], db['column_names']
+        table_names, column_names = db['table_names'], list(map(lambda x: x[1], db['column_names']))
         q_num, dtype = len(question_toks), '<U100'
         t_num, c_num = len(table_toks), len(column_toks)
 
@@ -266,7 +266,7 @@ class InputProcessor():
                     if verbose:
                         matched_pairs['exact'].append(str((schema, sid, ''.join(question_toks[start: end]), start, end)))
             return q_s_mat, s_q_mat, matched_pairs
-        
+
         q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(table_toks, table_names, 'table')
         q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(column_toks, column_names, 'column')
 

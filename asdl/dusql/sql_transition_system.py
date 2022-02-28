@@ -8,12 +8,8 @@ from utils.constants import DATASETS
 class SQLTransitionSystem(TransitionSystem):
     def __init__(self, grammar, table_path=None, db_dir=None):
         super(SQLTransitionSystem, self).__init__(grammar)
-        if grammar.grammar_version == '1':
-            from asdl.dusql.parser_v1 import Parser
-            from asdl.dusql.unparser_v1 import UnParser
-        else:
-            from asdl.dusql.parser_v2 import Parser
-            from asdl.dusql.unparser_v2 import UnParser
+        from asdl.dusql.parser import Parser
+        from asdl.dusql.unparser import UnParser
         if table_path is None:
             table_path = os.path.join(DATASETS['dusql']['data'], 'tables.bin')
         if db_dir is None:

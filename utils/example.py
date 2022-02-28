@@ -173,7 +173,7 @@ class Example():
         self.graph = Example.graph_factory.graph_construction(ex, db)
 
         self.query, self.ast, self.canonical_action = '', None, []
-        if 'query' in ex: # labeled outputs
+        if 'ast' in ex: # labeled outputs
             self.query = ' '.join(ex['query'].split('\t'))
             self.ast = ex['ast']
 

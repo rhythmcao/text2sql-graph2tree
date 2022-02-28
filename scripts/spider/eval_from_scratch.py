@@ -8,6 +8,7 @@ from utils.initialization import set_torch_device
 from utils.constants import DEBUG, TEST
 from utils.example import Example
 from utils.batch import Batch
+from torch.utils.data import DataLoader
 from model.model_utils import Registrable
 from model.model_constructor import *
 

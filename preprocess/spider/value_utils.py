@@ -229,20 +229,13 @@ class ValueProcessor():
     def extract_values(self, entry: dict, db: dict, verbose=False):
         """ Extract values(class SQLValue) which will be used in AST construction
         """
-        try:
-            question_toks = remove_names(entry['uncased_question_toks'])
-            sqlvalues, _ = self.extract_values_from_sql(entry['sql'], set(), question_toks, db, '')
-            entry = self.assign_values(entry, sqlvalues)
-            if verbose and len(entry['values']) > 0:
-                print('Question:', ' '.join(entry['uncased_question_toks']))
-                print('SQL:', entry['query'])
-                print('Values:', ' ; '.join([repr(val) for val in entry['values']]), '\n')
-        except Exception as e:
-            print('Raw question:', entry['question'])
+        question_toks = remove_names(entry['uncased_question_toks'])
+        sqlvalues, _ = self.extract_values_from_sql(entry['sql'], set(), question_toks, db, '')
+        entry = self.assign_values(entry, sqlvalues)
+        if verbose and len(entry['values']) > 0:
             print('Question:', ' '.join(entry['uncased_question_toks']))
             print('SQL:', entry['query'])
-            print(e)
-            exit(1)
+            print('Values:', ' ; '.join([repr(val) for val in entry['values']]), '\n')
         return entry
 
     def assign_values(self, entry, values):

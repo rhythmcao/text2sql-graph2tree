@@ -8,15 +8,8 @@ from utils.constants import DATASETS
 class SQLTransitionSystem(TransitionSystem):
     def __init__(self, grammar, table_path=None, db_dir=None):
         super(SQLTransitionSystem, self).__init__(grammar)
-        if grammar.grammar_version == '1':
-            from asdl.spider.parser_v1 import Parser
-            from asdl.spider.unparser_v1 import UnParser
-        elif grammar.grammar_version == '2':
-            from asdl.spider.parser_v2 import Parser
-            from asdl.spider.unparser_v2 import UnParser
-        else:
-            from asdl.spider.parser_v3 import Parser
-            from asdl.spider.unparser_v3 import UnParser
+        from asdl.spider.parser import Parser
+        from asdl.spider.unparser import UnParser
         self.parser = Parser(self.grammar)
         if table_path is None:
             table_path = os.path.join(DATASETS['spider']['data'], 'tables.bin')
@@ -63,7 +56,7 @@ if __name__ == '__main__':
         return recovered_sqls
 
 
-    def evaluate_sqls(recovered_sqls, choice='train', etype='exec'):
+    def evaluate_sqls(recovered_sqls, choice='train', etype='all'):
         pred_path = os.path.join(data_dir, choice + '_pred.sql')
         with open(pred_path, 'w') as of:
             for each in recovered_sqls:
@@ -77,8 +70,8 @@ if __name__ == '__main__':
 
     create_gold_sql('train')
     train_sqls = sql_to_ast_to_sql(train)
-    evaluate_sqls(train_sqls, 'train', 'exec')
+    evaluate_sqls(train_sqls, 'train', 'all')
 
     create_gold_sql('dev')
     dev_sqls = sql_to_ast_to_sql(dev)
-    evaluate_sqls(dev_sqls, 'dev', 'exec')
+    evaluate_sqls(dev_sqls, 'dev', 'all')

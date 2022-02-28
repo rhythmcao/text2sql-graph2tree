@@ -1,5 +1,5 @@
 #coding=utf8
-import os, pickle, argparse, sys, time
+import os, json, pickle, argparse, sys, time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.constants import DATASETS
 
@@ -30,8 +30,14 @@ def process_dataset_output(processor, dataset, tables, output_path=None, skip_la
         if (idx + 1) % 500 == 0:
             print('*************** Processing outputs of the %d-th sample **************' % (idx + 1))
         # extract schema subgraph, graph pruning labels, values from (question, sql) pairs, and output action sequence
-        entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)
-        processed_dataset.append(entry)
+        try:
+            entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)
+            processed_dataset.append(entry)
+        except Exception as e:
+            print('Skip instance: [%s]' % (', '.join(entry['cased_question_toks'])))
+            print('SQL: %s' % (entry['query']))
+            print('SQL: %s' % (json.dumps(entry['sql'], ensure_ascii=False)))
+            print(e)
     print('In total, process %d samples, skip %d samples .' % (len(processed_dataset), len(dataset) - len(processed_dataset)))
     if output_path is not None:
         # serialize preprocessed dataset

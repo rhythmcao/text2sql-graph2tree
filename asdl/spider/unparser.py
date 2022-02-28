@@ -2,7 +2,7 @@
 import re
 from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
-from asdl.spider.parser_v1 import UNIT_OP_NAME
+from asdl.spider.parser import UNIT_OP_NAME
 from preprocess.spider.value_utils import ValueProcessor, UNIT_OP
 from preprocess.process_utils import State
 from functools import wraps

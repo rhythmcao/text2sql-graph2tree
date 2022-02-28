@@ -2,7 +2,7 @@
 import re, json, os, sys, copy, math, pickle, datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import editdistance as edt
-import cn2an, traceback
+import cn2an
 import jionlp as jio
 from decimal import Decimal
 from fuzzywuzzy import process
@@ -294,24 +294,14 @@ class ValueProcessor():
         Because BIO labeling is performed at word-level instead of char-level.
         `track` is used to record the traverse clause path.
         """
-        try:
-            value_set = set()
-            question_toks = copy.deepcopy(entry['uncased_question_toks'])
-            sqlvalues, question_toks = self.extract_values_from_sql(entry['sql'], value_set, question_toks, entry, track='')
-            entry = self.assign_values(entry, sqlvalues)
-            if verbose and len(entry['values']) > 0:
-                print('Question:', ' '.join(entry['uncased_question_toks']))
-                print('SQL:', entry['query'])
-                print('Values:', ' ; '.join([repr(val) for val in entry['values']]), '\n')
-        except Exception as e:
-            print('ID:', entry['question_id'])
+        value_set = set()
+        question_toks = copy.deepcopy(entry['uncased_question_toks'])
+        sqlvalues, question_toks = self.extract_values_from_sql(entry['sql'], value_set, question_toks, entry, track='')
+        entry = self.assign_values(entry, sqlvalues)
+        if verbose and len(entry['values']) > 0:
             print('Question:', ' '.join(entry['uncased_question_toks']))
             print('SQL:', entry['query'])
-            print('sql:', json.dumps(entry['sql'], ensure_ascii=False))
-            print(e)
-            exc_type, exc_value, exc_traceback_obj = sys.exc_info()
-            traceback.print_tb(exc_traceback_obj)
-            exit(1)
+            print('Values:', ' ; '.join([repr(val) for val in entry['values']]), '\n')
         return entry
 
     def assign_values(self, entry, values):

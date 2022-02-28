@@ -1,5 +1,6 @@
 #coding=utf8
-import re, json, jieba
+import enum
+import re, json, string
 import numpy as np
 from LAC import LAC
 import cn2an
@@ -7,7 +8,7 @@ from itertools import product, combinations
 from numpy.core.fromnumeric import cumsum
 from utils.constants import MAX_RELATIVE_DIST
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import is_number, quote_normalization
+from preprocess.process_utils import is_number, quote_normalization, QUOTATION_MARKS
 from preprocess.dusql.bridge_content_encoder import STOPWORDS, get_database_matches
 
 def is_word_number(word):
@@ -32,6 +33,7 @@ def extract_db_cells(contents, db):
         for column_cells in table_cells:
             cur_values = []
             for cell in set(column_cells):
+                cell = str(cell)
                 if cell.strip():
                     cur_values.append(cell.strip())
             db_cells.append(cur_values)
@@ -39,7 +41,7 @@ def extract_db_cells(contents, db):
 
 split_alpha = lambda str: re.sub(r'[a-z0-9\.]+[十百千万亿%]*', lambda match_obj: " " + match_obj.group(0) + " ", str, flags=re.I)
 # deal with metrics that is not ambiguous
-split_metric1 = lambda str: re.sub(r'平方千米|平米|千米|千瓦|千克|千卡|kg|km|cm|mm|app', lambda match_obj: " " + match_obj.group(0), str, flags=re.I)
+split_metric1 = lambda str: re.sub(r'千米|千瓦|千克|千卡|kg|km|cm|mm|app', lambda match_obj: " " + match_obj.group(0), str, flags=re.I)
 # deal with metrics with length 1, such as 4G, 1.5L, 0.5t, 0.3M, attention that 4w and 3k should not be split
 split_metric2 = lambda str: re.sub(r'([^a-z0-9\.]|^)([0-9\.]+)([glmt])([^a-z0-9]|$)', lambda match_obj: ' '.join(match_obj.groups()), str, flags=re.I)
 NUMBER_REPLACEMENT = list(zip('０１２３４５６７８９％：．', '0123456789%:.'))
@@ -51,8 +53,9 @@ class InputProcessor():
         self.db_dir = db_dir
         self.db_content = db_content
         # self.nlp = lambda s: list(jieba.cut(s))
-        tools = LAC(mode='seg')
+        tools = LAC(mode='lac')
         self.nlp = lambda s: tools.run(s)
+        self.stopwords = STOPWORDS | set(QUOTATION_MARKS + list('，。！￥？（）《》、；·…' + string.punctuation))
         if self.db_content:
             self.contents = load_db_contents(self.db_dir)
         self.bridge = bridge # whether extract candidate cell values for each column given the question
@@ -191,21 +194,27 @@ class InputProcessor():
         entry = self.construct_item_mapping(entry)
         # LAC tokenize
         question = self.normalize_question(entry['question'])
-        toks = self.nlp(question)
-        cased_toks = re.sub(r'\s+', ' ', ' '.join(toks)).strip().split(' ')
+        filtered = filter(lambda x: x[0] not in list(' \t\n\r\f\v'), zip(*self.nlp(question)))
+        tok_tag = list(zip(*filtered))
+        cased_toks, pos_tags = list(tok_tag[0]), list(tok_tag[1])
+        # toks = self.nlp(question)
+        # cased_toks = re.sub(r'\s+', ' ', ' '.join(toks)).strip().split(' ')
         # some tokenization errors
-        if entry['question_id'] == 'qid017993':
-            cased_toks = ['建筑师', '汤姆·梅恩', '比', '巴克里希纳·多西', '多', '多少', '作品']
-        elif '北京首都国际机场' in cased_toks:
+        # if entry['question_id'] == 'qid017993':
+            # cased_toks = ['建筑师', '汤姆·梅恩', '比', '巴克里希纳·多西', '多', '多少', '作品']
+            # pos_tags = []
+        if '北京首都国际机场' in cased_toks:
             index = cased_toks.index('北京首都国际机场')
             cased_toks[index: index + 1] = ['北京', '首都国际机场']
+            pos_tags[index: index + 1] = ['LOC', 'LOC']
         elif '德克萨斯比拉斯维加斯' in cased_toks:
             index = cased_toks.index('德克萨斯比拉斯维加斯')
             cased_toks[index: index + 1] = ['德克萨斯', '比', '拉斯维加斯']
+            pos_tags[index: index + 1] = ['LOC', 'p', 'LOC']
         toks = [w.lower() for w in cased_toks]
         entry['cased_question_toks'] = cased_toks
         entry['uncased_question_toks'] = toks
-        entry['question'] = ''.join(cased_toks)
+        entry['question'], entry['pos_tags'] = ''.join(cased_toks), pos_tags
         # map raw question_char_position_id to question_word_position_id, and reverse
         entry['char2word_id_mapping'] = [idx for idx, w in enumerate(toks) for _ in range(len(w))]
         entry['word2char_id_mapping'] = cumsum([0] + [len(w) for w in toks]).tolist()
@@ -228,36 +237,34 @@ class InputProcessor():
         if verbose:
             print('Question:', entry['question'])
             print('Tokenized:', ' '.join(entry['uncased_question_toks']))
-            # print('Pos tags:', ' '.join(entry['pos_tags']))
+            print('Pos tags:', ', '.join(entry['pos_tags']))
             print('\n')
         return entry
 
     def schema_linking(self, entry: dict, db: dict, verbose: bool = False):
         """ Perform schema linking: both question and database need to be preprocessed """
-        question_toks = entry['uncased_question_toks']
-        question = ''.join(question_toks)
+        question_toks, pos_tags = entry['uncased_question_toks'], entry['pos_tags']
         table_toks, column_toks = db['table_toks'], db['column_toks']
         table_names, column_names = db['table_names'], list(map(lambda x: x[1], db['column_names']))
-        q_num, dtype = len(question_toks), '<U100'
-        t_num, c_num = len(table_toks), len(column_toks)
+        q_num, question, dtype = len(question_toks), ''.join(question_toks), '<U100'
 
-        def question_schema_matching(schema_toks, schema_names, category):
+        def question_schema_matching_method1(schema_toks, schema_names, category):
             assert category in ['table', 'column']
             s_num, matched_pairs = len(schema_names), {'partial': [], 'exact': []}
             q_s_mat = np.array([[f'question-{category}-nomatch'] * s_num for _ in range(q_num)], dtype=dtype)
             s_q_mat = np.array([[f'{category}-question-nomatch'] * q_num for _ in range(s_num)], dtype=dtype)
             for qid, tok in enumerate(question_toks):
-                if tok in STOPWORDS: continue
+                if tok in self.stopwords or pos_tags[qid] in ['r', 'p', 'c', 'u', 'xc', 'w']: continue
                 for sid, schema_tok in enumerate(schema_toks):
                     if tok in schema_tok:
-                        match_type = 'partial' if len(schema_tok) > 1 else 'exact'
+                        match_type = 'exact' if tok == schema_tok else 'partial'
                         q_s_mat[qid, sid] = f'question-{category}-{match_type}match'
                         s_q_mat[sid, qid] = f'{category}-question-{match_type}match'
                         if verbose:
                             matched_pairs[match_type].append(str((schema_names[sid], sid, tok, qid, qid + 1)))
                         break
             for sid, schema in enumerate(schema_names):
-                if len(schema_toks[sid]) == 1 or schema in STOPWORDS: continue
+                if len(schema_toks[sid]) == 1 or schema in self.stopwords: continue
                 if schema in question:
                     start_id = question.index(schema)
                     start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(schema) - 1] + 1
@@ -267,53 +274,32 @@ class InputProcessor():
                         matched_pairs['exact'].append(str((schema, sid, ''.join(question_toks[start: end]), start, end)))
             return q_s_mat, s_q_mat, matched_pairs
 
-        q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(table_toks, table_names, 'table')
-        q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(column_toks, column_names, 'column')
+        def question_schema_matching_method2(schema_toks, schema_names, category):
+            assert category in ['table', 'column']
+            s_num, matched_pairs = len(schema_names), {'partial': [], 'exact': []}
+            q_s_mat = np.array([[f'question-{category}-nomatch'] * s_num for _ in range(q_num)], dtype=dtype)
+            s_q_mat = np.array([[f'{category}-question-nomatch'] * q_num for _ in range(s_num)], dtype=dtype)
+            for sid, name in enumerate(schema_names):
+                if category == 'column' and sid == 0: continue
+                max_len = len(schema_toks[sid])
+                index_pairs = sorted(filter(lambda x: 0 < x[1] - x[0] <= max_len, combinations(range(q_num + 1), 2)), key=lambda x: x[1] - x[0])
+                for start, end in index_pairs:
+                    span = ''.join(question_toks[start: end])
+                    if span in self.stopwords: continue
+                    if span == name:
+                        q_s_mat[range(start, end), sid] = f'question-{category}-exactmatch'
+                        s_q_mat[sid, range(start, end)] = f'{category}-question-exactmatch'
+                        if verbose:
+                            matched_pairs['exact'].append(str((schema_names[sid], sid, span, start, end)))
+                    elif (end - start == 1 and span in schema_toks[sid]) or (end - start > 1 and span in name):
+                        # tradeoff between precision and recall
+                        q_s_mat[range(start, end), sid] = f'question-{category}-partialmatch'
+                        s_q_mat[sid, range(start, end)] = f'{category}-question-partialmatch'
+                        if verbose:
+                            matched_pairs['partial'].append(str((schema_names[sid], sid, span, start, end)))
 
-
-        # relations between questions and tables, q_num*t_num and t_num*q_num
-        # table_matched_pairs = {'partial': [], 'exact': []}
-        # q_tab_mat = np.array([['question-table-nomatch'] * t_num for _ in range(q_num)], dtype=dtype)
-        # tab_q_mat = np.array([['table-question-nomatch'] * q_num for _ in range(t_num)], dtype=dtype)
-        # for idx, name in enumerate(table_names):
-        #     max_len = len(name)
-        #     index_pairs = sorted(filter(lambda x: x[1] - x[0] <= max_len, combinations(range(q_num + 1), 2)), key=lambda x: x[1] - x[0])
-        #     for i, j in index_pairs:
-        #         phrase = ''.join(question_toks[i: j])
-        #         if phrase in STOPWORDS: continue
-        #         if phrase == name: # fully match will overwrite partial match due to sort
-        #             q_tab_mat[range(i, j), idx] = 'question-table-exactmatch'
-        #             tab_q_mat[idx, range(i, j)] = 'table-question-exactmatch'
-        #             if verbose:
-        #                 table_matched_pairs['exact'].append(str((name, idx, phrase, i, j)))
-        #         # elif (j - i == 1 and phrase in table_toks[idx]) or (j - i > 1 and phrase in name):
-        #         elif (len(phrase) == 1 and phrase in table_toks[idx]) or (len(phrase) > 1 and phrase in name):
-        #             q_tab_mat[range(i, j), idx] = 'question-table-partialmatch'
-        #             tab_q_mat[idx, range(i, j)] = 'table-question-partialmatch'
-        #             if verbose:
-        #                 table_matched_pairs['partial'].append(str((name, idx, phrase, i, j)))
-
-        # relations between questions and columns
-        # column_matched_pairs = {'partial': [], 'exact': []}
-        # q_col_mat = np.array([['question-column-nomatch'] * c_num for _ in range(q_num)], dtype=dtype)
-        # col_q_mat = np.array([['column-question-nomatch'] * q_num for _ in range(c_num)], dtype=dtype)
-        # for idx, (_, name) in enumerate(column_names):
-        #     max_len = len(name)
-        #     index_pairs = sorted(filter(lambda x: x[1] - x[0] <= max_len, combinations(range(q_num + 1), 2)), key=lambda x: x[1] - x[0])
-        #     for i, j in index_pairs:
-        #         phrase = ''.join(question_toks[i: j])
-        #         if phrase in STOPWORDS: continue
-        #         if phrase == name: # fully match will overwrite partial match due to sort
-        #             q_col_mat[range(i, j), idx] = 'question-column-exactmatch'
-        #             col_q_mat[idx, range(i, j)] = 'column-question-exactmatch'
-        #             if verbose:
-        #                 column_matched_pairs['exact'].append(str((name, idx, phrase, i, j)))
-        #         # elif (j - i == 1 and phrase in column_toks[idx]) or (j - i > 1 and phrase in name):
-        #         elif (len(phrase) == 1 and phrase in column_toks[idx]) or (len(phrase) > 1 and phrase in name):
-        #             q_col_mat[range(i, j), idx] = 'question-column-partialmatch'
-        #             col_q_mat[idx, range(i, j)] = 'column-question-partialmatch'
-        #             if verbose:
-        #                 column_matched_pairs['partial'].append(str((name, idx, phrase, i, j)))
+        q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching_method1(table_toks, table_names, 'table')
+        q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching_method1(column_toks, column_names, 'column')
 
         if self.db_content:
             column_matched_pairs['value'] = []
@@ -321,26 +307,26 @@ class InputProcessor():
             def normalize_numbers(num):
                 return str(float(num)) if is_number(num) else str(num)
 
-            for i, (_, col_name) in enumerate(db['column_names']):
-                if i == 0: # ignore *
+            for cid, col_name in enumerate(column_names):
+                if cid == 0: # ignore *
                     continue
-                cells = db['cells'][i] # list of cell values, ['2014', '2015']
+                cells = db['cells'][cid] # list of cell values, ['2014', '2015']
                 cells = [normalize_numbers(c).lower() for c in cells]
-                for j, word in enumerate(question_toks):
+                for qid, word in enumerate(question_toks):
                     norm_word = normalize_numbers(word)
                     word = entry['item_mapping_reverse'][int(word.strip('item'))] if word.startswith('item') else word
-                    for c in cells:
-                        if (word in c or norm_word in c) and 'nomatch' in q_col_mat[j, i] and word not in STOPWORDS:
-                            q_col_mat[j, i] = 'question-column-valuematch'
-                            col_q_mat[i, j] = 'column-question-valuematch'
-                            if verbose:
-                                column_matched_pairs['value'].append(str((col_name, i, c, word, j, j + 1)))
-                            break
+                    if 'nomatch' in q_col_mat[qid, cid] and pos_tags[qid] not in ['r', 'p', 'c', 'u', 'xc', 'w'] and word not in self.stopwords:
+                        for c in cells:
+                            if word in c or norm_word in c:
+                                q_col_mat[qid, cid] = 'question-column-valuematch'
+                                col_q_mat[cid, qid] = 'column-question-valuematch'
+                                if verbose:
+                                    column_matched_pairs['value'].append(str((col_name, cid, c, word, qid, qid + 1)))
+                                break
 
         # extract candidate cell values for each column given the current question
         if self.bridge:
             cells = [[]] # map column_id to candidate values relevant to the question
-            question = ''.join(question_toks)
             for col_id in range(len(db['column_names'])):
                 if col_id == 0: continue
                 candidates = db['cells'][col_id]

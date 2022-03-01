@@ -2,7 +2,7 @@
 import os
 from collections import OrderedDict
 
-DEBUG = True
+DEBUG = False
 TEST = False
 
 PAD = '[PAD]'
@@ -34,7 +34,7 @@ RELATIONS = ['question-question-dist' + str(i) if i != 0 else 'question-question
 
 DATASETS = {
     'spider': {
-        'grammar': os.path.join('asdl', 'spider', 'spider_grammar_v2.txt'),
+        'grammar': os.path.join('asdl', 'spider', 'spider_grammar.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'spider'),
         'database': os.path.join('data', 'spider', 'database'),
@@ -45,7 +45,7 @@ DATASETS = {
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
     'dusql': {
-        'grammar': os.path.join('asdl', 'dusql', 'dusql_grammar_v2.txt'),
+        'grammar': os.path.join('asdl', 'dusql', 'dusql_grammar.txt'),
         'relation': RELATIONS,
         'data': os.path.join('data', 'dusql'),
         'database': os.path.join('data', 'dusql', 'db_content.json'),
@@ -67,7 +67,7 @@ DATASETS = {
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
     'cspider_raw': {
-        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_grammar.txt'),
+        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider_raw'),
         'database': os.path.join('data', 'cspider_raw', 'database'),

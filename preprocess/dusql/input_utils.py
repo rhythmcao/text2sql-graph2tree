@@ -52,7 +52,6 @@ class InputProcessor():
         super(InputProcessor, self).__init__()
         self.db_dir = db_dir
         self.db_content = db_content
-        # self.nlp = lambda s: list(jieba.cut(s))
         tools = LAC(mode='lac')
         self.nlp = lambda s: tools.run(s)
         self.stopwords = STOPWORDS | set(QUOTATION_MARKS + list('，。！￥？（）《》、；·…' + string.punctuation))
@@ -76,13 +75,13 @@ class InputProcessor():
             db['column_names_original'] = db['column_names']
         table_toks, table_names = [], []
         for tab in db['table_names']:
-            tab = self.nlp(tab)
+            tab = list(self.nlp(tab)[0])
             table_toks.append(tab)
             table_names.append(" ".join(tab))
         db['table_toks'] = table_toks
         column_toks, column_names = [], []
         for _, col in db['column_names']:
-            col = self.nlp(col)
+            col = list(self.nlp(col)[0])
             column_toks.append(col)
             column_names.append(" ".join(col))
         db['column_toks'] = column_toks
@@ -194,9 +193,12 @@ class InputProcessor():
         entry = self.construct_item_mapping(entry)
         # LAC tokenize
         question = self.normalize_question(entry['question'])
-        filtered = filter(lambda x: x[0] not in list(' \t\n\r\f\v'), zip(*self.nlp(question)))
+        filtered = map(lambda x: x.split(' '), filter(lambda x: x[0] not in list(' \t\n\r\f\v'), zip(*self.nlp(question)))
         tok_tag = list(zip(*filtered))
         cased_toks, pos_tags = list(tok_tag[0]), list(tok_tag[1])
+
+        for tok, tag in zip(cased_toks, pos_tags):
+
         # toks = self.nlp(question)
         # cased_toks = re.sub(r'\s+', ' ', ' '.join(toks)).strip().split(' ')
         # some tokenization errors
@@ -257,7 +259,7 @@ class InputProcessor():
                 if tok in self.stopwords or pos_tags[qid] in ['r', 'p', 'c', 'u', 'xc', 'w']: continue
                 for sid, schema_tok in enumerate(schema_toks):
                     if tok in schema_tok:
-                        match_type = 'exact' if tok == schema_tok else 'partial'
+                        match_type = 'exact' if len(schema_tok) == 1 else 'partial'
                         q_s_mat[qid, sid] = f'question-{category}-{match_type}match'
                         s_q_mat[sid, qid] = f'{category}-question-{match_type}match'
                         if verbose:

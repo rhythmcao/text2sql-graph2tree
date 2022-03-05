@@ -50,6 +50,7 @@ class SelectValueAction(GenTokenAction):
 
     reserved_spider = Vocab(iterable=['null', 'false', 'true', '0', '1'], default='1')
     reserved_dusql = Vocab(iterable=['否', '是', '0', '1'], default='1')
+    reserved_cspider_raw = Vocab(iterable=['value'], default='value')
 
     @classmethod
     def size(cls, dataset):
@@ -57,6 +58,8 @@ class SelectValueAction(GenTokenAction):
             return cls.reserved_spider.vocab_size
         elif dataset == 'dusql':
             return cls.reserved_dusql.vocab_size
+        elif dataset == 'cspider_raw':
+            return cls.reserved_cspider_raw.vocab_size
         else:
             raise NotImplementedError
 
@@ -66,6 +69,8 @@ class SelectValueAction(GenTokenAction):
             return cls.reserved_spider
         elif dataset == 'dusql':
             return cls.reserved_dusql
+        elif dataset == 'cspider_raw':
+            return cls.reserved_cspider_raw
         else:
             raise NotImplementedError
 
@@ -152,6 +157,8 @@ class TransitionSystem(object):
             from asdl.spider.sql_transition_system import SQLTransitionSystem
         elif dataset == 'dusql':
             from asdl.dusql.sql_transition_system import SQLTransitionSystem
+        elif dataset == 'cspider_raw':
+            from asdl.cspider_raw.sql_transition_system import SQLTransitionSystem
         else:
             raise ValueError('unknown dataset name %s' % dataset)
         return SQLTransitionSystem

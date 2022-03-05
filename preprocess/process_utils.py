@@ -1,11 +1,16 @@
 #coding=utf8
-import re
+import re, math
+import cn2an
 from itertools import chain
 from typing import List, Set, Tuple
 from fuzzywuzzy import process
 from dateutil import parser as datetime_parser
 from word2number import w2n
 from collections import namedtuple
+
+UNIT_OP = ('none', '-', '+', "*", '/')
+UNIT_OP_NAME = ('', 'Minus', 'Plus', 'Times', 'Divide')
+AGG_OP = ('none', 'max', 'min', 'count', 'sum', 'avg')
 
 QUOTATION_MARKS = ["'", '"', '`', '‘', '’', '“', '”', '``', "''", "‘‘", "’’"]
 BOOL_TRUE = ['Y', 'y', 'T', 't', '1', 1, 'yes', 'Yes', 'true', 'True', 'YES', 'TRUE']
@@ -23,6 +28,18 @@ MONTH2NUMBER = dict(chain(zip(MONTH, range(1, 13)), zip(MONTH_ABBREV, range(1, 1
 WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 WEEK_ABBREV = [s[:3] for s in WEEK]
 WEEK2NUMBER = dict(chain(zip(WEEK, range(1, 8)), zip(WEEK_ABBREV, range(1, 8))))
+
+ZH_NUMBER_1 = '零一二三四五六七八九'
+ZH_NUMBER_2 = '〇壹贰叁肆伍陆柒捌玖'
+ZH_TWO_ALIAS = '两俩'
+ZH_NUMBER = ZH_NUMBER_1 + ZH_NUMBER_2 + ZH_TWO_ALIAS
+ZH_UNIT = '十拾百佰千仟万萬兆亿億点'
+ZH_UNIT_MAPPING = dict(zip(ZH_UNIT, [10, 10, 100, 100, 1000, 1000, 10000, 10000, 1000000, 100000000, 100000000, 1]))
+ZH_RESERVE_CHARS = ZH_NUMBER + ZH_UNIT
+DIGIT_ALIAS = lambda num: ZH_NUMBER_1[num] + ZH_NUMBER_2[num] if num != 2 else \
+    ZH_NUMBER_1[num] + ZH_TWO_ALIAS + ZH_NUMBER_2[num]
+ZH_WORD2NUM = lambda s: cn2an.cn2an(s, mode='smart')
+ZH_NUM2WORD = lambda s, m: cn2an.an2cn(s, m)
 
 
 def is_number(s):
@@ -43,6 +60,13 @@ def is_date(s):
     try:
         if re.search(r'(\d{1,4}[-/]\d{1,2}[-/]\d{1,4})( ?\d{1,2}:\d{1,2}:\d{1,2})?', s.strip()) is not None: return True
     except: return False
+
+
+def float_equal(val1, val2, multiplier=1):
+    val1, val2 = float(val1), float(val2)
+    if math.fabs(val1 - val2) < 1e-5: return True
+    elif math.fabs(val1 * multiplier - val2) < 1e-5 or math.fabs(val1 - val2 * multiplier) < 1e-6: return True
+    return False
 
 
 def quote_normalization(question):
@@ -71,11 +95,13 @@ def quote_normalization(question):
             new_question[index] = "'"
         return re.sub(r'\s+', ' ', ' '.join(new_question))
     else:
-        for sym in QUOTATION_MARKS:
-            question = question.replace(sym, '"')
-        if question.count('"') == 1:
-            question = question.replace('"', "'")
-        return re.sub(r'\s+', ' ', question)
+        for p in QUOTATION_MARKS:
+            if p not in ['"', '“', '”']:
+                if question.count(p) == 1:
+                    question = question.replace(p, '')
+                else:
+                    question = question.replace(p, '"')
+        return re.sub(r'\s+', ' ', question.strip())
 
 
 def number_string_normalization(s: str):

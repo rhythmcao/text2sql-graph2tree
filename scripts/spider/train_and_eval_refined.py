@@ -113,7 +113,7 @@ if not args.testing:
             (i, time.time() - start_time, epoch_loss['ast_loss'], epoch_loss['vr_loss'], epoch_loss['gp_loss']))
 
         if i < args.eval_after_epoch: # avoid unnecessary evaluation
-            if (i + 1) % 20 == 0 and best_result['dev_acc'] < 0. + 1e-4:
+            if (i + 1) % 20 == 0 and best_result['dev_acc'] < 0. + 1e-4 and is_master:
                 torch.save({
                     'epoch': i, 'model': base_model.state_dict(),
                     'optim': optimizer.state_dict(),

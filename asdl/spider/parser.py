@@ -4,10 +4,9 @@ from asdl.asdl_ast import AbstractSyntaxTree
 from functools import wraps
 from utils.constants import DEBUG
 from itertools import chain, repeat
-from preprocess.process_utils import SQLValue, State
-from preprocess.spider.value_utils import AGG_OP, CMP_OP, UNIT_OP
+from preprocess.process_utils import SQLValue, State, AGG_OP, UNIT_OP, UNIT_OP_NAME
+from preprocess.spider.value_utils import CMP_OP
 
-UNIT_OP_NAME = ('', 'Minus', 'Plus', 'Times', 'Divide')
 CMP_OP_NAME = {
     '=': 'Equal', '>': 'GreaterThan', '<': 'LessThan', '>=': 'GreaterEqual', '<=': 'LessEqual',
     '!=': 'NotEqual', 'in': 'In', 'not in': 'NotIn', 'like': 'Like', 'not like': 'NotLike'
@@ -268,7 +267,7 @@ class Parser():
         if type(val) == dict: # nested sql
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('SQLValue'))
             ast_node[self.grammar.get_field_by_text('sql value_sql')][0].add_value(self.parse_sql(val, sql_values, track))
-        elif type(val) == list: # column
+        elif type(val) in [list, tuple]: # column
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name('ColumnValue'))
             ast_node[self.grammar.get_field_by_text('col_id col_id')][0].add_value(int(val[1]))
         else: # literal value

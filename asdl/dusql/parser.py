@@ -3,10 +3,9 @@ from asdl.asdl import ASDLConstructor, ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
 from functools import wraps
 from utils.constants import DEBUG
-from preprocess.process_utils import SQLValue, State
-from preprocess.dusql.value_utils import AGG_OP, CMP_OP, UNIT_OP
+from preprocess.process_utils import SQLValue, State, UNIT_OP, AGG_OP, UNIT_OP_NAME
+from preprocess.dusql.value_utils import CMP_OP
 
-UNIT_OP_NAME = ('', 'Minus', 'Plus', 'Times', 'Divide')
 CMP_OP_NAME = {
     '==': 'Equal', '>': 'GreaterThan', '<': 'LessThan', '>=': 'GreaterEqual', '<=': 'LessEqual',
     '!=': 'NotEqual', 'in': 'In', 'not_in': 'NotIn', 'like': 'Like'
@@ -164,8 +163,8 @@ class Parser():
         _, _, val_unit, val1, _ = cond
         col_id1, col_id2 = int(val_unit[1][1]), int(val1)
         fields = ast_node[self.grammar.get_field_by_text('col_id col_id')]
-        fields[0].add_value(col_id1)
-        fields[1].add_value(col_id2)
+        fields[0].add_value(col_id1 + 1) # plus 1 due to TIME_NOW
+        fields[1].add_value(col_id2 + 1)
         return ast_node
 
     def parse_groupby(self, groupby_clause: list, having_clause: list, sql_values: set, track: str):

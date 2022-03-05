@@ -1,9 +1,7 @@
 #coding=utf8
-import os, sys, sqlite3
-import string
+import os, sqlite3, string
 import numpy as np
 import stanza
-import word2number as w2n
 from nltk.corpus import stopwords
 from itertools import product, combinations
 from utils.constants import MAX_RELATIVE_DIST
@@ -11,11 +9,6 @@ from preprocess.graph_utils import GraphProcessor
 from preprocess.process_utils import is_number, quote_normalization
 from preprocess.spider.bridge_content_encoder import get_database_matches
 
-def is_word_number(w):
-    try:
-        num = w2n.word_to_num(w)
-        return True
-    except: return False
 
 class InputProcessor():
 
@@ -26,6 +19,8 @@ class InputProcessor():
         self.nlp = stanza.Pipeline('en', processors='tokenize,pos,lemma')#, use_gpu=False)
         self.stopwords = set(stopwords.words("english")) - {'no'}
         self.graph_processor = GraphProcessor(encode_method)
+        self.table_pmatch, self.table_ematch = 0, 0
+        self.column_pmatch, self.column_ematch, self.column_vmatch = 0, 0, 0
 
     def pipeline(self, entry: dict, db: dict, verbose: bool = False):
         """ db should be preprocessed """
@@ -160,50 +155,40 @@ class InputProcessor():
         table_names, column_names = db['processed_table_names'], db['processed_column_names']
         q_num, t_num, c_num, dtype = len(question_toks), len(table_toks), len(column_toks), '<U100'
 
-        # relations between questions and tables, q_num*t_num and t_num*q_num
-        table_matched_pairs = {'partial': [], 'exact': []}
-        q_tab_mat = np.array([['question-table-nomatch'] * t_num for _ in range(q_num)], dtype=dtype)
-        tab_q_mat = np.array([['table-question-nomatch'] * q_num for _ in range(t_num)], dtype=dtype)
-        max_len = max([len(t) for t in table_toks])
-        index_pairs = list(filter(lambda x: x[1] - x[0] <= max_len, combinations(range(q_num + 1), 2)))
-        index_pairs = sorted(index_pairs, key=lambda x: x[1] - x[0])
-        for i, j in index_pairs:
-            phrase = ' '.join(question_toks[i: j])
-            if phrase in self.stopwords: continue
-            for idx, name in enumerate(table_names):
-                if phrase == name: # fully match will overwrite partial match due to sort
-                    q_tab_mat[range(i, j), idx] = 'question-table-exactmatch'
-                    tab_q_mat[idx, range(i, j)] = 'table-question-exactmatch'
-                    if verbose:
-                        table_matched_pairs['exact'].append(str((name, idx, phrase, i, j)))
-                elif (j - i == 1 and phrase in name.split()) or (j - i > 1 and phrase in name):
-                    q_tab_mat[range(i, j), idx] = 'question-table-partialmatch'
-                    tab_q_mat[idx, range(i, j)] = 'table-question-partialmatch'
-                    if verbose:
-                        table_matched_pairs['partial'].append(str((name, idx, phrase, i, j)))
+        def question_schema_matching_method(schema_toks, schema_names, category):
+            assert category in ['table', 'column']
+            s_num, matched_pairs = len(schema_names), {'partial': [], 'exact': []}
+            q_s_mat = np.array([[f'question-{category}-nomatch'] * s_num for _ in range(q_num)], dtype=dtype)
+            s_q_mat = np.array([[f'{category}-question-nomatch'] * q_num for _ in range(s_num)], dtype=dtype)
+            max_len = max([len(t) for t in schema_toks])
+            index_pairs = list(filter(lambda x: x[1] - x[0] <= max_len, combinations(range(q_num + 1), 2)))
+            index_pairs = sorted(index_pairs, key=lambda x: x[1] - x[0])
+            for i, j in index_pairs:
+                phrase = ' '.join(question_toks[i: j])
+                if phrase in self.stopwords: continue
+                for idx, name in enumerate(schema_names):
+                    if category == 'column' and idx == 0: continue
+                    if phrase == name: # fully match will overwrite partial match due to sort
+                        q_s_mat[range(i, j), idx] = f'question-{category}-exactmatch'
+                        s_q_mat[idx, range(i, j)] = f'{category}-question-exactmatch'
+                        if verbose:
+                            matched_pairs['exact'].append(str((name, idx, phrase, i, j)))
+                    elif (j - i == 1 and phrase in name.split()) or (j - i > 1 and phrase in name):
+                        q_s_mat[range(i, j), idx] = f'question-{category}-partialmatch'
+                        s_q_mat[idx, range(i, j)] = f'{category}-question-partialmatch'
+                        if verbose:
+                            matched_pairs['partial'].append(str((name, idx, phrase, i, j)))
+            return q_s_mat, s_q_mat, matched_pairs
 
-        # relations between questions and columns
-        column_matched_pairs = {'partial': [], 'exact': [], 'value': [], 'number': []}
-        q_col_mat = np.array([['question-column-nomatch'] * c_num for _ in range(q_num)], dtype=dtype)
-        col_q_mat = np.array([['column-question-nomatch'] * q_num for _ in range(c_num)], dtype=dtype)
-        max_len = max([len(c) for c in column_toks])
-        index_pairs = list(filter(lambda x: x[1] - x[0] <= max_len, combinations(range(q_num + 1), 2)))
-        index_pairs = sorted(index_pairs, key=lambda x: x[1] - x[0])
-        for i, j in index_pairs:
-            phrase = ' '.join(question_toks[i: j])
-            if phrase in self.stopwords: continue
-            for idx, name in enumerate(column_names):
-                if phrase == name: # fully match will overwrite partial match due to sort
-                    q_col_mat[range(i, j), idx] = 'question-column-exactmatch'
-                    col_q_mat[idx, range(i, j)] = 'column-question-exactmatch'
-                    if verbose:
-                        column_matched_pairs['exact'].append(str((name, idx, phrase, i, j)))
-                elif (j - i == 1 and phrase in name.split()) or (j - i > 1 and phrase in name):
-                    q_col_mat[range(i, j), idx] = 'question-column-partialmatch'
-                    col_q_mat[idx, range(i, j)] = 'column-question-partialmatch'
-                    if verbose:
-                        column_matched_pairs['partial'].append(str((name, idx, phrase, i, j)))
+        q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching_method(table_toks, table_names, 'table')
+        self.table_pmatch += np.sum(q_tab_mat == 'question-table-partialmatch')
+        self.table_ematch += np.sum(q_tab_mat == 'question-table-exactmatch')
+        q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching_method(column_toks, column_names, 'column')
+        self.column_pmatch += np.sum(q_col_mat == 'question-column-partialmatch')
+        self.column_ematch += np.sum(q_col_mat == 'question-column-exactmatch')
+
         if self.db_content:
+            column_matched_pairs['value'] = []
             db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
             if not os.path.exists(db_file):
                 raise ValueError('[ERROR]: database file %s not found ...' % (db_file))
@@ -230,6 +215,7 @@ class InputProcessor():
                                 break
                 except Exception as e: print(e)
             conn.close()
+            self.column_vmatch += np.sum(q_col_mat == 'question-column-valuematch')
 
         if self.bridge:
             question = entry['question']
@@ -246,10 +232,8 @@ class InputProcessor():
                     candidates = ['='] + sum([[w.text.lower() for s in c.sentences for w in s.words] + [','] for c in candidates], [])[:-1]
                 cells.append(candidates)
                 processed_cells.append(processed_candidates)
-        else:
-            cells = processed_cells = [[] for _ in range(len(db['column_names_original']))]
-        entry['cells'] = cells
-        entry['processed_cells'] = processed_cells
+        else: cells = processed_cells = [[] for _ in range(len(db['column_names_original']))]
+        entry['cells'], entry['processed_cells'] = cells, processed_cells
 
         # two symmetric schema linking matrix: q_num x (t_num + c_num), (t_num + c_num) x q_num
         q_col_mat[:, 0] = 'question-column-nomatch'

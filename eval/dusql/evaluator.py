@@ -42,7 +42,7 @@ class DuSQLEvaluator(Evaluator):
         return score
 
 
-    def evaluate_with_official_interface(self, pred_sqls, ref_sqls, dbs, dataset, output_path, etype, checker=False):
+    def evaluate_with_official_interface(self, pred_sqls, ref_sqls, dbs, dataset, output_path, etype):
         with tempfile.NamedTemporaryFile('w+t', encoding='utf8', suffix='.sql') as tmp_pred, \
             tempfile.NamedTemporaryFile('w+t', encoding='utf8', suffix='.sql') as tmp_ref:
             of = open(output_path, 'w', encoding='utf8') if output_path is not None \

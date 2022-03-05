@@ -45,6 +45,8 @@ def process_dataset_input(processor, dataset, tables, output_path=None, skip_lar
         # preprocess raw question tokens, schema linking and graph construction
         entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)
         processed_dataset.append(entry)
+    print('Table: partial match %d ; exact match %d' % (processor.table_pmatch, processor.table_ematch))
+    print('Column: partial match %d ; exact match %d ; value match %d' % (processor.column_pmatch, processor.column_ematch, processor.column_vmatch))
     print('In total, process %d samples , skip %d extremely large databases.' % (len(processed_dataset), len(dataset) - len(processed_dataset)))
     if output_path is not None:
         # serialize preprocessed dataset

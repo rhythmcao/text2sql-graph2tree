@@ -2,6 +2,7 @@
 import os, json, pickle, argparse, sys, time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.constants import DATASETS
+import traceback
 
 def get_output_processor(dataset, table_path=None, db_dir=None):
     if dataset == 'spider':
@@ -23,22 +24,25 @@ def get_output_processor(dataset, table_path=None, db_dir=None):
     output_processor = OutputProcessor(table_path, db_dir)
     return output_processor
 
-def process_dataset_output(processor, dataset, tables, output_path=None, skip_large=False, verbose=False):
+def process_dataset_output(processor, dataset, tables, output_path=None, skip_error=True, verbose=False):
     processed_dataset = []
     for idx, entry in enumerate(dataset):
-        if skip_large and len(tables[entry['db_id']]['column_names']) > 100: continue
         if (idx + 1) % 500 == 0:
             print('*************** Processing outputs of the %d-th sample **************' % (idx + 1))
-        # extract schema subgraph, graph pruning labels, values from (question, sql) pairs, and output action sequence
         try:
+            # extract schema subgraph, graph pruning labels, values from (question, sql) pairs, and output ast
             entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)
             processed_dataset.append(entry)
         except Exception as e:
-            print('Skip instance: [%s]' % (', '.join(entry['cased_question_toks'])))
-            print('SQL: %s' % (entry['query']))
+            print('Skip instance (%s): [%s]' % (entry['question_id'], '|'.join(entry['cased_question_toks'])))
+            print('Query: %s' % (entry['query']))
             print('SQL: %s' % (json.dumps(entry['sql'], ensure_ascii=False)))
+            # exc_type, exc_value, exc_traceback_obj = sys.exc_info()
+            # traceback.print_tb(exc_traceback_obj)
             print(e)
-    print('In total, process %d samples, skip %d samples .' % (len(processed_dataset), len(dataset) - len(processed_dataset)))
+            print('')
+            if not skip_error: raise ValueError(f'[ERROR]: while processing output of the {idx}-th sample !')
+    print('In total, process %d samples, skip %d erroneous samples .' % (len(processed_dataset), len(dataset) - len(processed_dataset)))
     if output_path is not None:
         # serialize preprocessed dataset
         pickle.dump(processed_dataset, open(output_path, 'wb'))
@@ -60,5 +64,5 @@ if __name__ == '__main__':
     processor = get_output_processor(args.dataset, table_path=tables, db_dir=db_dir)
     dataset_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
     dataset = pickle.load(open(dataset_path, 'rb'))
-    dataset = process_dataset_output(processor, dataset, tables, dataset_path, verbose=args.verbose)
+    dataset = process_dataset_output(processor, dataset, tables, dataset_path, skip_error=True, verbose=args.verbose)
     print('Dataset preprocessing costs %.4fs .' % (time.time() - start_time))

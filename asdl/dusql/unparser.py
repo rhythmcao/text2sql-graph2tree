@@ -2,8 +2,8 @@
 import re
 from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
-from asdl.dusql.parser import UNIT_OP_NAME
-from preprocess.dusql.value_utils import ValueProcessor, UNIT_OP
+from preprocess.process_utils import UNIT_OP, UNIT_OP_NAME
+from preprocess.dusql.postprocess import ValueProcessor
 from preprocess.process_utils import State
 from functools import wraps
 from utils.constants import DEBUG

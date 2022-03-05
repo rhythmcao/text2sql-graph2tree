@@ -1,5 +1,5 @@
 # coding=utf-8
-import os, sys, json, pickle
+import os, sys, pickle
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from asdl.transition_system import TransitionSystem
 from utils.constants import DATASETS

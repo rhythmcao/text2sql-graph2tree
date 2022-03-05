@@ -2,6 +2,7 @@
 from asdl.asdl import ASDLGrammar
 from asdl.transition_system import TransitionSystem
 from utils.constants import DATASETS
+from preprocess.dusql.value_utils import ValueExtractor
 
 class OutputProcessor():
 
@@ -9,13 +10,13 @@ class OutputProcessor():
         super(OutputProcessor, self).__init__()
         grammar = ASDLGrammar.from_filepath(DATASETS['dusql']['grammar'])
         self.trans = TransitionSystem.get_class_by_dataset('dusql')(grammar, table_path, db_dir)
-        self.value_processor = self.trans.unparser.value_processor
+        self.value_extractor = ValueExtractor()
 
     def pipeline(self, entry: dict, db: dict, verbose: bool = False):
         # extract schema sub-graph for graph pruning, entry key: 'used_tables' and 'used_columns'
         entry = self.extract_subgraph(entry, db, verbose=verbose)
         # extract bio sequence and all SQLValue's first, entry key: 'values', 'candidates'
-        entry = self.value_processor.extract_values(entry, db, verbose=verbose)
+        entry = self.value_extractor.extract_values(entry, db, verbose=verbose)
         # add auxiliary labels for value recognition and graph pruning
         entry = self.auxiliary_labels(entry, db)
         # generate golden ast

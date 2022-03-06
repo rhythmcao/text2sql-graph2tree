@@ -2,68 +2,61 @@
 import os, sys, sqlite3, re, string, json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import stanza
-import numpy as np
-from numpy.core.fromnumeric import cumsum
 from LAC import LAC
-import word2number as w2n
 from itertools import product
 from fuzzywuzzy import process
-from googletrans import Translator
+from easynmt import EasyNMT
 from nltk.corpus import stopwords
+import numpy as np
+from numpy.core.fromnumeric import cumsum
 from utils.constants import MAX_RELATIVE_DIST, DATASETS
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import QUOTATION_MARKS, is_number
+from preprocess.process_utils import QUOTATION_MARKS, quote_normalization, is_number
+from preprocess.dusql.bridge_content_encoder import STOPWORDS
 
-
-def is_word_number(w):
-    try:
-        num = w2n.word_to_num(w)
-        return True
-    except: return False
-
-STOPWORDS = set(["的", "是", "，", "？", "有", "多少", "哪些", "我", "什么", "你", "知道", "啊", "次", "些", "一些",
-            "一下", "吗", "在", "请问", "或", "或者", "想", "和", "为", "帮", "那个", "你好", "这", "上", "这边", "这些",
-            "了", "并且", "都", "呢", "呀", "哪个", "还有", "这个", "-", "项目", "我查", "就是", "所有", "就", "那么",
-            "它", "它们", "他", "他们", "要求", "谁", "了解", "告诉", "时候", "个", "能", "那", "人", "问", "中", "列出", "找出", "找到",
-            "可以", "一共", "哪", "麻烦", "叫", "想要", "《", "》", "分别", "按", "按照", "过", "为其"])
 
 class CachedTranslator():
 
-    def __init__(self, cached_dir=None) -> None:
+    def __init__(self, cache_folder=None) -> None:
         super(CachedTranslator, self).__init__()
-        self.translator = Translator(service_urls=['translate.googleapis.com'])
-        self.cached_dir = cached_dir if cached_dir is not None else DATASETS['cspider_raw']['cached_dir']
+        self.cache_folder = cache_folder if cache_folder is not None else DATASETS['cspider_raw']['cache_folder']
+        self.translator = EasyNMT('mbart50_m2m', cache_folder=cache_folder, load_translator=True) # mbart50_m2m, mbart50_m2en, mbart50_en2m, m2m_100_418M, m2m_100_1.2B
         self.zh2en, self.en2zh = {}, {}
-        zh2en_path = os.path.join(self.cached_dir, 'translation.zh2en')
+        zh2en_path = os.path.join(self.cache_folder, 'translation.zh2en')
         self.zh2en = json.load(open(zh2en_path, 'r')) if os.path.exists(zh2en_path) else {}
-        en2zh_path = os.path.join(cached_dir, 'translation.en2zh')
+        en2zh_path = os.path.join(self.cache_folder, 'translation.en2zh')
         self.en2zh = json.load(open(en2zh_path, 'r')) if os.path.exists(en2zh_path) else {}
 
-    def translate(self, query: str, tgt_lang: str = 'en'):
-        try:
-            if tgt_lang == 'en':
-                res = self.zh2en.get(query, None)
-                if res is None:
-                    res = self.translator.translate(query, dest='en').text.lower()
-                    self.zh2en[query] = res
-            else:
-                res = self.en2zh.get(query, None)
-                if res is None:
-                    res = self.translator.translate(query, dest='zh-cn').text.lower()
-                    self.en2zh[query] = res
-            return res
-        except: # return itself if RuntimeError occurs during calling API
-            print('[ERROR]: calling google translation API failed!')
-            return query
-    
-    def batched_translate(self, queries: list = [], tgt_lang: str = 'en'):
-        return [self.translate(q, tgt_lang=tgt_lang) for q in queries]
+    def translate(self, query: str, target_lang: str = 'en'):
+        query = query.lower()
+        if target_lang == 'en':
+            if not re.search(u'[\u4e00-\u9fa5]', query): return query # must has chinese char
+            else: # 第1, 2人, 第1个
+                match_obj = re.search(r'^[^\d\.]*([\d\.]+)[^\d\.]*$', query)
+                if match_obj and is_number(match_obj.group(1)):
+                    return match_obj.group(1)
+            res = self.zh2en.get(query, None)
+            if res is None:
+                # res = 'null' # comment the line below to gather all phrases to be translated
+                res = self.translator.translate(query, source_lang='zh', target_lang='en').lower()
+                self.zh2en[query] = res
+        else:
+            if not re.search(r'[a-zA-Z]', query): return query
+            res = self.en2zh.get(query, None)
+            if res is None:
+                # res = 'null' # comment the line below to firstly gather all phrases to be translated
+                res = self.translator.translate(query, source_lang='en', target_lang='zh').lower()
+                self.en2zh[query] = res
+        return query
+
+    def batched_translate(self, queries: list = [], target_lang: str = 'en'):
+        return [self.translate(q, target_lang=target_lang) for q in queries]
 
     def save_translation_memory(self, save_dir: str = None):
-        save_dir = self.cached_dir if save_dir is None else save_dir
-        with open(os.path.join(save_dir, 'translations.zh2en'), 'w') as of:
+        save_dir = self.cache_folder if save_dir is None else save_dir
+        with open(os.path.join(save_dir, 'translation.zh2en'), 'w') as of:
             json.dump(self.zh2en, of, indent=4, ensure_ascii=False)
-        with open(os.path.join(save_dir, 'translations.en2zh'), 'w') as of:
+        with open(os.path.join(save_dir, 'translation.en2zh'), 'w') as of:
             json.dump(self.en2zh, of, indent=4, ensure_ascii=False)
         return
 
@@ -79,10 +72,12 @@ class InputProcessor():
         self.nlp_zh = lambda s: tools.run(s)
         self.stopwords_en = set(stopwords.words("english")) - {'no'}
         self.stopwords_zh = set(STOPWORDS)
-        self.punctuations = QUOTATION_MARKS + list('，。！￥？（）《》、；·…' + string.punctuation)
+        self.punctuations = set(QUOTATION_MARKS + list('，。！￥？（）《》、；·…' + string.punctuation))
         # to reduce the number of API calls
         self.translator = CachedTranslator()
         self.graph_processor = GraphProcessor(encode_method)
+        self.table_pmatch, self.table_ematch = 0, 0
+        self.column_pmatch, self.column_ematch, self.column_vmatch = 0, 0, 0
 
     def pipeline(self, entry: dict, db: dict, verbose: bool = False):
         """ db should be preprocessed """
@@ -93,29 +88,19 @@ class InputProcessor():
 
     def preprocess_database(self, db: dict, verbose: bool = False):
         """ Tokenize, lemmatize, lowercase table and column names for each database """
-        table_toks, processed_table_toks, processed_table_names = [], [], []
+        table_toks = []
         for tab in db['table_names']:
             doc = self.nlp_en(tab)
             tab = [w.text.lower() for s in doc.sentences for w in s.words]
-            # ptab = [w.lemma.lower() for s in doc.sentences for w in s.words]
             table_toks.append(tab)
-            # processed_table_toks.append(ptab)
-            # processed_table_names.append(" ".join(ptab))
         db['table_toks'] = table_toks
-        # db['processed_table_toks'] = processed_table_toks
-        # db['processed_table_names'] = processed_table_names
-        
-        column_toks, processed_column_toks, processed_column_names = [], [], []
+
+        column_toks = []
         for _, c in db['column_names']:
             doc = self.nlp_en(c)
             c = [w.text.lower() for s in doc.sentences for w in s.words]
-            # pc = [w.lemma.lower() for s in doc.sentences for w in s.words]
             column_toks.append(c)
-            # processed_column_toks.append(pc)
-            # processed_column_names.append(" ".join(pc))
         db['column_toks'] = column_toks
-        # db['processed_column_toks'] = processed_column_toks
-        # db['processed_column_names'] =  processed_column_names
 
         column2table = list(map(lambda x: x[0], db['column_names'])) # from column id to table id
         table2columns = [[] for _ in range(len(db['table_names']))] # from table id to column ids list
@@ -169,25 +154,13 @@ class InputProcessor():
 
         if verbose:
             print('Tables:', ', '.join([' '.join(t) for t in table_toks]))
-            # print('Lemmatized:', ', '.join(processed_table_names))
             print('Columns:', ', '.join([' '.join(c) for c in column_toks]))
-            # print('Lemmatized:', ', '.join(processed_column_names), '\n')
         return db
-
-    def question_normalization(self, question: str):
-        # quote normalization
-        for p in QUOTATION_MARKS:
-            if p not in ['"', '“', '”']:
-                if question.count(p) == 1:
-                    question = question.replace(p, '')
-                else:
-                    question = question.replace(p, '"')
-        return question.strip()
 
     def preprocess_question(self, entry: dict, verbose: bool = False):
         """ Tokenize, lemmatize, lowercase question"""
         # chinese sentence, use LAC tokenize
-        question = self.question_normalization(entry['question'])
+        question = quote_normalization(entry['question'])
         # remove all blank symbols
         filtered = filter(lambda x: x[0] not in list(' \t\n\r\f\v'), zip(*self.nlp_zh(question)))
         tok_tag = list(zip(*filtered))
@@ -226,9 +199,11 @@ class InputProcessor():
         numbers, entities = [], []
         for j, word in enumerate(question_toks):
             if is_number(word):
-                entities.append((str(float(word)), (j, j + 1)))
-            elif len(word) > 1 and is_number(word[:-1]): # 2个, 3种
-                entities.append((str(float(word[:-1])), (j, j + 1)))
+                numbers.append((str(float(word)), (j, j + 1)))
+            else: # 第1个, 3篇, 第4
+                match_obj = re.search(r'^[^\d\.]*([\d\.]+)[^\d\.]*$', word)
+                if match_obj and is_number(match_obj.group(1)):
+                    numbers.append((str(float(match_obj.group(1))), (j, j + 1)))
         start, prev_is_bracket, wrapped = -1, False, False # ooo""xxx""yyy""ooo, ooo"xxx"ooo"yyy"ooo, all extract xxx and yyy
         for j, word in enumerate(question_toks):
             if word in ['"', '“', '”']:
@@ -242,17 +217,16 @@ class InputProcessor():
                 if prev_is_bracket and wrapped:
                     start = j
                 elif (not wrapped) and pos_tags[j] in ['nz', 'nw', 'PER', 'LOC', 'ORG', 'TIME']:
-                    entities.append(word, (j, j + 1))
+                    entities.append((word, (j, j + 1)))
                 prev_is_bracket = False
         return numbers, entities
 
     def schema_linking(self, entry: dict, db: dict, verbose: bool = False):
         """ Perform schema linking: both question and database need to be preprocessed """
-        cased_question_toks, question_toks = entry['cased_question_toks'], entry['uncased_question_toks']
-        question, pos_tags = ''.join(question_toks), entry['pos_tags']
+        question_toks, pos_tags = entry['uncased_question_toks'], entry['pos_tags']
         table_toks, column_toks = db['table_toks'], db['column_toks']
         table_names, column_names = db['table_names'], list(map(lambda x: x[1], db['column_names']))
-        q_num, dtype = len(question_toks), '<U100'
+        question, q_num, dtype = ''.join(question_toks), len(question_toks), '<U100'
 
         def question_schema_matching(schema_toks, schema_names, category):
             assert category in ['table', 'column']
@@ -260,92 +234,97 @@ class InputProcessor():
             q_s_mat = np.array([[f'question-{category}-nomatch'] * s_num for _ in range(q_num)], dtype=dtype)
             s_q_mat = np.array([[f'{category}-question-nomatch'] * q_num for _ in range(s_num)], dtype=dtype)
             # forward translation, schema items en -> zh
-            for idx, toks in enumerate(schema_toks):
-                toks_zh = self.translator.batched_translate(toks, tgt_lang='zh')
-                if len(toks) > 1:
-                    full_schema_zh = self.translator.translate(schema_names[idx], tgt_lang='zh')
-                    toks_zh.append(full_schema_zh)
+            for sid, toks in enumerate(schema_toks):
+                filtered_toks = [t for t in toks if t not in self.stopwords_en and t not in self.punctuations]
+                if len(filtered_toks) == 0: continue
+                exact_match_at_end = True if len(toks) == 1 else False
+                if len(toks) > 1 and schema_names[sid] not in self.stopwords_en:
+                    filtered_toks.append(schema_names[sid])
+                    exact_match_at_end = True
+                toks_zh = self.translator.batched_translate(filtered_toks, target_lang='zh')
                 for j, span in enumerate(toks_zh):
-                    span = span.replace(' ', '') # question exclude whitespaces
-                    match_type = 'partial' if j < len(toks_zh) - 1 else 'exact'
+                    span = span.replace(' ', '') # chinese question exclude whitespaces
+                    match_type = 'exact' if j == len(toks_zh) - 1 and exact_match_at_end else 'partial'
                     if span in question and span not in self.stopwords_zh:
                         start_id = question.index(span)
                         start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(span) - 1] + 1
-                        q_s_mat[range(start, end), idx] = f'question-{category}-{match_type}match'
-                        s_q_mat[idx, range(start, end)] = f'{category}-question-{match_type}match'
+                        q_s_mat[range(start, end), sid] = f'question-{category}-{match_type}match'
+                        s_q_mat[sid, range(start, end)] = f'{category}-question-{match_type}match'
                         if verbose:
-                            matched_pairs[match_type].append(str((span, start, end, schema_names[idx], idx)))
+                            matched_pairs[match_type].append(str((schema_names[sid], sid, span, start, end)))
             # backward translation, question_tok zh -> en, increase recall
-            toks_en = self.translator.batched_translate(cased_question_toks, tgt_lang='en')
-            for start, tok in enumerate(toks_en):
-                tok = tok.lower()
-                if tok in self.stopwords_en or tok in self.punctuations or pos_tags[start] in ['r', 'p', 'c', 'u', 'xc', 'w']: continue
-                for idx, name in enumerate(schema_names):
-                    if tok in name and 'exact' not in q_s_mat[start, idx]:
-                        match_type = 'partial' if len(schema_toks[idx]) > 1 else 'exact'
-                        q_s_mat[start, idx] = f'question-{category}-{match_type}match'
-                        s_q_mat[idx, start] = f'{category}-question-{match_type}match'
+            for qid, tok in enumerate(question_toks):
+                if tok in self.stopwords_zh or tok in self.punctuations or pos_tags[qid] in ['r', 'p', 'c', 'u', 'xc', 'w']: continue
+                tok_en = self.translator.translate(tok, target_lang='en')
+                if tok_en in self.stopwords_en: continue
+                for sid, name in enumerate(schema_names):
+                    if (tok_en in name or name in tok_en) and 'exact' not in q_s_mat[qid, sid]:
+                        match_type = 'exact' if name in tok_en else 'partial'
+                        q_s_mat[qid, sid] = f'question-{category}-{match_type}match'
+                        s_q_mat[sid, qid] = f'{category}-question-{match_type}match'
                         if verbose:
-                            matched_pairs[match_type].append(str((tok, start, start + 1, schema_names[idx], idx)))
+                            matched_pairs[match_type].append(str((schema_names[sid], sid, tok, qid, qid + 1)))
             return q_s_mat, s_q_mat, matched_pairs
-        
+
         q_tab_mat, tab_q_mat, table_matched_pairs = question_schema_matching(table_toks, table_names, 'table')
+        self.table_pmatch += np.sum(q_tab_mat == 'question-table-partialmatch')
+        self.table_ematch += np.sum(q_tab_mat == 'question-table-exactmatch')
         q_col_mat, col_q_mat, column_matched_pairs = question_schema_matching(column_toks, column_names, 'column')
+        self.column_pmatch += np.sum(q_col_mat == 'question-column-partialmatch')
+        self.column_ematch += np.sum(q_col_mat == 'question-column-exactmatch')
 
         if self.db_content:
             column_matched_pairs['value'] = []
             db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
-            try:
-                conn = sqlite3.connect(db_file)
-                conn.text_factory = lambda b: b.decode(errors='ignore')
-                conn.execute('pragma foreign_keys=ON')
-                numbers, entities = self.extract_numbers_and_entities(question_toks, pos_tags)
-                for i, (tab_id, col_name) in enumerate(db['column_names_original']):
-                    if i == 0 or 'id' in column_toks[i]: # ignore * and special token 'id'
-                        continue
-                    tab_name = db['table_names_original'][tab_id]
-                    command = "SELECT DISTINCT \"%s\" FROM \"%s\";" % (col_name, tab_name)
-                    try:
-                        cursor = conn.execute(command)
-                        cell_values = cursor.fetchall()
-                        cell_values = [str(each[0]) for each in cell_values]
-                        if len(cell_values) == 0: continue
-                        for cv in cell_values:
-                            if re.search(r'[a-zA-Z]', cv):
-                                cv = self.translator.translate(cv, tgt_lang='zh')
-                            cv = re.sub(r'["“”\'\s]', '', cv)
-                            if cv in question and cv not in self.stopwords_zh:
-                                start_id = question.index(cv)
-                                start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(cv) - 1] + 1
-                                for j in range(start, end):
-                                    if 'nomatch' in q_col_mat[j, i]:
-                                        q_col_mat[j, i] = 'question-column-valuematch'
-                                        col_q_mat[i, j] = 'column-question-valuematch'
-                                if verbose:
-                                    column_matched_pairs['value'].append(str((cv, start, end, column_names[i], i)))
-                        # normalize numbers
-                        cell_values = [str(float(cv)) if is_number(cv) else cv for cv in cell_values]
-                        for num, (start, _) in numbers:
-                            if num in cell_values and 'nomatch' in q_col_mat[start, i]:
-                                q_col_mat[start, i] = 'question-column-valuematch'
-                                col_q_mat[i, start] = 'column-question-valuematch'
-                                if verbose:
-                                    column_matched_pairs['value'].append(str((cv, start, start + 1, column_names[i], i)))
-                        for ent, (start, end) in entities:
-                            if re.search(u'[\u4e00-\u9fa5]', ent):
-                                ent = self.translator.translate(ent, tgt_lang='en')
-                            cv, score = process.extractOne(ent, cell_values)
-                            if score >= 85:
-                                for j in range(start, end):
-                                    if 'nomatch' in q_col_mat[j, i]:
-                                        q_col_mat[j, i] = 'question-column-valuematch'
-                                        col_q_mat[i, j] = 'column-question-valuematch'
-                                if verbose:
-                                    column_matched_pairs['value'].append(str((cv, start, end, column_names[i], i)))                          
-                    except Exception: print('Error raised while executing SQL:', command)
-                conn.close()
-            except:
-                print('DB file not found:', db_file)
+            if not os.path.exists(db_file):
+                raise ValueError('DB file not found:', db_file)
+            conn = sqlite3.connect(db_file)
+            conn.text_factory = lambda b: b.decode(errors='ignore')
+            conn.execute('pragma foreign_keys=ON')
+            numbers, entities = self.extract_numbers_and_entities(question_toks, pos_tags)
+            for cid, (tid, col_name) in enumerate(db['column_names_original']):
+                if cid == 0 or 'id' in column_toks[cid]: # ignore * and special token 'id'
+                    continue
+                tab_name = db['table_names_original'][tid]
+                command = "SELECT DISTINCT \"%s\" FROM \"%s\";" % (col_name, tab_name)
+                try:
+                    cursor = conn.execute(command)
+                    cell_values = cursor.fetchall()
+                    cell_values = [str(each[0]).strip().lower() for each in cell_values if str(each).strip() != '']
+                    if len(cell_values) == 0: continue
+                    for cv in cell_values:
+                        if cv in self.stopwords_en: continue
+                        if cv in question: # need not translate
+                            start_id = question.index(cv)
+                            start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(cv) - 1] + 1
+                            for qid in range(start, end):
+                                if 'nomatch' in q_col_mat[qid, cid]:
+                                    q_col_mat[qid, cid] = 'question-column-valuematch'
+                                    col_q_mat[cid, qid] = 'column-question-valuematch'
+                                    if verbose:
+                                        column_matched_pairs['value'].append(str((cv, start, end, column_names[cid], cid)))
+                            continue
+                    # normalize numbers
+                    cell_values = [str(float(cv)) if is_number(cv) else cv for cv in cell_values]
+                    for num, (qid, _) in numbers:
+                        if num in cell_values and 'nomatch' in q_col_mat[qid, cid]:
+                            q_col_mat[qid, cid] = 'question-column-valuematch'
+                            col_q_mat[cid, qid] = 'column-question-valuematch'
+                            if verbose:
+                                column_matched_pairs['value'].append(str((column_names[cid], cid, num, qid, qid + 1)))
+                    for ent, (start, end) in entities:
+                        ent = self.translator.translate(ent, target_lang='en')
+                        cv, score = process.extractOne(ent, cell_values)
+                        if score >= 95:
+                            for qid in range(start, end):
+                                if 'nomatch' in q_col_mat[qid, cid]:
+                                    q_col_mat[qid, cid] = 'question-column-valuematch'
+                                    col_q_mat[cid, qid] = 'column-question-valuematch'
+                            if verbose:
+                                column_matched_pairs['value'].append(str((column_names[cid], cid, ent, start, end)))
+                except Exception: print('Error raised while executing SQL:', command)
+            conn.close()
+            self.column_vmatch += np.sum(q_col_mat == 'question-column-valuematch')
 
         # no bridge
         cells = [[] for _ in range(len(db['column_names']))]
@@ -360,10 +339,10 @@ class InputProcessor():
 
         if verbose:
             print('Question:', ' '.join(question_toks))
-            print('Table matched: (question_span, start index, end index, table name, table id)')
+            print('Table matched: (table name, table id, question_span, start index, end index)')
             print('Exact match:', ', '.join(table_matched_pairs['exact']) if table_matched_pairs['exact'] else 'empty')
             print('Partial match:', ', '.join(table_matched_pairs['partial']) if table_matched_pairs['partial'] else 'empty')
-            print('Column matched: (question_span, start index, end index, column name, column id)')
+            print('Column matched: (column name, column id, question_span, start index, end index)')
             print('Exact match:', ', '.join(column_matched_pairs['exact']) if column_matched_pairs['exact'] else 'empty')
             print('Partial match:', ', '.join(column_matched_pairs['partial']) if column_matched_pairs['partial'] else 'empty')
             if self.db_content:
@@ -374,15 +353,37 @@ class InputProcessor():
 
 if __name__ == '__main__':
 
-    processor = InputProcessor()
-    data_dir = DATASETS['cspider_raw']['data']
-    tables = { db['db_id']: db for db in json.load(open(os.path.join(data_dir, 'tables.json'), 'r')) }
-    data = json.load(open(os.path.join(data_dir, 'train.json'), 'r')) + json.load(open(os.path.join(data_dir, 'dev.json'), 'r'))
-    for db in tables:
-        db = tables[db]
-        processor.preprocess_database(db)
-    for ex in data:
-        ex = processor.preprocess_question(ex)
-        ex = processor.schema_linking(ex, tables[ex['db_id']], verbose=True)
-        print('')
-    processor.translator.save_translation_memory()
+    # import pickle
+    # processor = InputProcessor()
+    # data_dir = DATASETS['cspider_raw']['data']
+    # tables = { db['db_id']: db for db in json.load(open(os.path.join(data_dir, 'tables.json'), 'r')) }
+    # for db in tables:
+    #     db = tables[db]
+    #     tables[db['db_id']] = processor.preprocess_database(db)
+    # pickle.dump(tables, open(os.path.join(DATASETS['cspider_raw']['data'], 'tables.bin'), 'wb'))
+    # tables = pickle.load(open(os.path.join(DATASETS['cspider_raw']['data'], 'tables.bin'), 'rb'))
+    # data = json.load(open(os.path.join(data_dir, 'train.json'), 'r')) + json.load(open(os.path.join(data_dir, 'dev.json'), 'r'))
+    # for ex in data:
+    #     ex = processor.preprocess_question(ex)
+    #     ex = processor.schema_linking(ex, tables[ex['db_id']], verbose=False)
+    # processor.translator.save_translation_memory()
+
+    zh2en_path, en2zh_path = os.path.join(DATASETS['cspider_raw']['cache_folder'], 'translation.zh2en'), os.path.join(DATASETS['cspider_raw']['cache_folder'], 'translation.en2zh')
+    zh2en, en2zh = json.load(open(zh2en_path, 'r')), json.load(open(en2zh_path, 'r'))
+
+    # mbart50_m2m, mbart50_m2en, mbart50_en2m, m2m_100_418M, m2m_100_1.2B
+    model_name = 'mbart50_m2m' # 'm2m_100_1.2B', 'm2m_100_418M'
+    translator = EasyNMT(model_name, cache_folder='./pretrained_models', load_translator=True)
+    zh_sent = list(zh2en.keys())
+    en_sent = translator.translate(zh_sent, source_lang='zh', target_lang='en', batch_size=32, show_progress_bar=True)
+    en_sent = [s.lower() for s in en_sent]
+    zh2en = dict(zip(zh_sent, en_sent))
+    json.dump(zh2en, open(zh2en_path + '.' + model_name, 'w'), indent=4, ensure_ascii=False)
+
+    # model_name = 'mbart50_en2m'
+    # translator = EasyNMT(model_name, cache_folder='./pretrained_models', load_translator=True)
+    en_sent = list(en2zh.keys())
+    zh_sent = translator.translate(en_sent, source_lang='en', target_lang='zh', batch_size=32, show_progress_bar=True)
+    zh_sent = [s.lower() for s in zh_sent]
+    en2zh = dict(zip(en_sent, zh_sent))
+    json.dump(en2zh, open(en2zh_path + '.' + model_name, 'w'), indent=4, ensure_ascii=False)

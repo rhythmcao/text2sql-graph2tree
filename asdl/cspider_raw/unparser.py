@@ -4,9 +4,7 @@ from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
 from functools import wraps
 from utils.constants import DEBUG
-
-UNIT_OP = ('none', '-', '+', "*", '/')
-UNIT_OP_NAME = ('', 'Minus', 'Plus', 'Times', 'Divide')
+from preprocess.process_utils import UNIT_OP, UNIT_OP_NAME
 
 def ignore_error(func):
     @wraps(func)

@@ -1,6 +1,7 @@
 # coding=utf-8
-import os, sys, json, pickle
+import os, sys, json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from asdl.asdl import ASDLGrammar
 from asdl.transition_system import TransitionSystem
 from utils.constants import DATASETS
 
@@ -20,7 +21,6 @@ class SQLTransitionSystem(TransitionSystem):
 
 if __name__ == '__main__':
 
-    from asdl.asdl import ASDLGrammar
     from eval.cspider_raw.evaluation import evaluate, build_foreign_key_map_from_json
     grammar = ASDLGrammar.from_filepath(DATASETS['cspider_raw']['grammar'])
     print('Total number of productions:', len(grammar))
@@ -65,7 +65,7 @@ if __name__ == '__main__':
         output_path = os.path.join(data_dir, choice + '_eval.log')
         with open(output_path, 'w') as of:
             sys.stdout, old_print = of, sys.stdout
-            evaluate(gold_path, pred_path, DATASETS['cspider_raw']['database_testsuite'], etype, kmaps)
+            evaluate(gold_path, pred_path, DATASETS['cspider_raw']['database'], etype, kmaps)
             sys.stdout = old_print
 
     create_gold_sql('train')

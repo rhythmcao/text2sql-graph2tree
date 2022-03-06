@@ -3,12 +3,10 @@ from asdl.asdl import ASDLConstructor, ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
 from functools import wraps
 from utils.constants import DEBUG
+from preprocess.process_utils import AGG_OP, UNIT_OP_NAME
 from itertools import chain, repeat
 
-AGG_OP = ('none', 'max', 'min', 'count', 'sum', 'avg')
 CMP_OP = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
-UNIT_OP = ('none', '-', '+', "*", '/')
-UNIT_OP_NAME = ('', 'Minus', 'Plus', 'Times', 'Divide')
 CMP_OP_NAME = {
     '=': 'Equal', '>': 'GreaterThan', '<': 'LessThan', '>=': 'GreaterEqual', '<=': 'LessEqual',
     '!=': 'NotEqual', 'in': 'In', 'not in': 'NotIn', 'like': 'Like', 'not like': 'NotLike',

@@ -61,9 +61,10 @@ class CSpiderRawEvaluator(Evaluator):
             # calculate sql accuracy
             old_print = sys.stdout
             sys.stdout = of
-            results = evaluate(tmp_ref.name, tmp_pred.name, self.db_dir, etype, self.kmaps)['all']
+            results = evaluate(tmp_ref.name, tmp_pred.name, self.db_dir, 'match', self.kmaps)['all']
             sys.stdout = old_print
             of.close()
+        results['exec'] = results['exact'] # can not execute
         return results
 
 

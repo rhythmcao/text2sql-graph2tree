@@ -160,6 +160,11 @@ question_query_mappings = {
     "哪位选手在1960和1961都获奖？返回他们的名字和姓氏。": "SELECT T1.name_first , T1.name_last FROM player AS T1 JOIN player_award AS T2 ON T1.player_id = T2.player_id WHERE T2.year  =  1960 INTERSECT SELECT T1.name_first , T1.name_last FROM player AS T1 JOIN player_award AS T2 ON T1.player_id = T2.player_id WHERE T2.year  =  1961"
 }
 
+query_mappings = {
+    "SELECT T1.fname FROM student AS T1 JOIN lives_in AS T2 ON T1.stuid  =  T2.stuid WHERE T2.dormid IN (SELECT T2.dormid FROM dorm AS T3 JOIN has_amenity AS T4 ON T3.dormid  =  T4.dormid JOIN dorm_amenity AS T5 ON T4.amenid  =  T5.amenid GROUP BY T3.dormid ORDER BY count(*) DESC LIMIT 1)":
+    "SELECT T1.fname FROM student AS T1 JOIN lives_in AS T2 ON T1.stuid  =  T2.stuid WHERE T2.dormid IN (SELECT T3.dormid FROM dorm AS T3 JOIN has_amenity AS T4 ON T3.dormid  =  T4.dormid JOIN dorm_amenity AS T5 ON T4.amenid  =  T5.amenid GROUP BY T3.dormid ORDER BY count(*) DESC LIMIT 1)",
+}
+
 question_query_replacement = {
     "哪些学生报名参加任何项目的次数最多？列出id、名字、中间名、姓氏、参加次数和学生id。":
     (
@@ -189,10 +194,29 @@ def amend_examples_in_dataset(dataset, schemas, tables, verbose=True):
             ex['query'] = question_query_replacement[ex['question']][1]
             ex['question'] = question_query_replacement[ex['question']][0]
             count += 1
+        elif ex['query'] in query_mappings:
+            if verbose:
+                print('DB:', ex['db_id'])
+                print('Question:', ex['question'])
+                print('SQL:', ex['query'])
+                print('SQL revised:', query_mappings[ex['query']])
+            ex['query'] = query_mappings[ex['query']]
         db_id = ex['db_id']
         ex['sql'] = get_sql(Schema(schemas[db_id], tables[db_id]), ex['query'])
     print('Fix %d examples in the dataset' % (count))
     return dataset
+
+
+def fix_two_special_tables(tables):
+    for db in tables:
+        if db['db_id'] == 'scholar':
+            db['table_names'] = ['venue', 'author', 'dataset', 'journal', 'key phrase', 'paper', 'cite', 'paper dataset', 'paper key phrase', 'writes']
+            db['column_names'] = [[-1, '*'], [0, 'venue id'], [0, 'venue name'], [1, 'author id'], [1, 'author name'], [2, 'dataset id'], [2, 'dataset name'], [3, 'journal id'], [3, 'journal name'], [4, 'key phrase id'], [4, 'key phrase name'], [5, 'paper id'], [5, 'title'], [5, 'venue id'], [5, 'year'], [5, 'number citing'], [5, 'number cited by'], [5, 'journal id'], [6, 'citing paper id'], [6, 'cited paper id'], [7, 'paper id'], [7, 'dataset id'], [8, 'paper id'], [8, 'key phrase id'], [9, 'paper id'], [9, 'author id']]
+        elif db['db_id'] == 'formula_1':
+            db['table_names'] = ['circuits', 'races', 'drivers', 'status', 'seasons', 'constructors', 'constructor standings', 'results', 'driver standings', 'constructor results', 'qualifying', 'pit stops', 'lap times']
+            db['column_names'] = [[-1, '*'], [0, 'circuit id'], [0, 'circuit reference'], [0, 'name'], [0, 'location'], [0, 'country'], [0, 'latitude'], [0, 'longitude'], [0, 'altitude'], [0, 'url'], [1, 'race id'], [1, 'year'], [1, 'round'], [1, 'circuit id'], [1, 'name'], [1, 'date'], [1, 'time'], [1, 'url'], [2, 'driver id'], [2, 'driver reference'], [2, 'number'], [2, 'code'], [2, 'forename'], [2, 'surname'], [2, 'dob'], [2, 'nationality'], [2, 'url'], [3, 'status id'], [3, 'status'], [4, 'year'], [4, 'url'], [5, 'constructor id'], [5, 'constructor reference'], [5, 'name'], [5, 'nationality'], [5, 'url'], [6, 'constructor standings id'], [6, 'race id'], [6, 'constructor id'], [6, 'points'], [6, 'position'], [6, 'position text'], [6, 'wins'], [7, 'result id'], [7, 'race id'], [7, 'driver id'], [7, 'constructor id'], [7, 'number'], [7, 'grid'], [7, 'position'], [7, 'position text'], [7, 'position order'], [7, 'points'], [7, 'laps'], [7, 'time'], [7, 'milliseconds'], [7, 'fastest lap'], [7, 'rank'], [7, 'fastest lap time'], [7, 'fastest lap speed'], [7, 'status id'], [8, 'driver standings id'], [8, 'race id'], [8, 'driver id'], [8, 'points'], [8, 'position'], [8, 'position text'], [8, 'wins'], [9, 'constructor results id'], [9, 'race id'], [9, 'constructor id'], [9, 'points'], [9, 'status'], [10, 'qualify id'], [10, 'race id'], [10, 'driver id'], [10, 'constructor id'], [10, 'number'], [10, 'position'], [10, 'q1'], [10, 'q2'], [10, 'q3'], [11, 'race id'], [11, 'driver id'], [11, 'stop'], [11, 'lap'], [11, 'time'], [11, 'duration'], [11, 'milliseconds'], [12, 'race id'], [12, 'driver id'], [12, 'lap'], [12, 'position'], [12, 'time'], [12, 'milliseconds']]
+    return tables
+
 
 if __name__ == '__main__':
 
@@ -200,7 +224,8 @@ if __name__ == '__main__':
     table_path = os.path.join(data_dir, 'tables.json')
     origin_table_path = os.path.join(data_dir, 'tables.original.json')
     update_table_path = origin_table_path if os.path.exists(origin_table_path) else table_path
-    tables = amend_primary_keys(json.load(open(update_table_path, 'r')), verbose=True)
+    tables = fix_two_special_tables(json.load(open(update_table_path, 'r')))
+    tables = amend_primary_keys(tables, verbose=True)
     tables = amend_foreign_keys(tables, verbose=True)
     tables = amend_boolean_types(tables, db_dir, verbose=True)
     if not os.path.exists(origin_table_path):

@@ -7,7 +7,7 @@ read_model_path=''
 read_ts_order_path=''
 read_canonical_action_path=''
 
-plm=infoxlm-large
+plm=infoxlm-large # xlm-roberta-large, xlm-roberta-large-finetuned-conll03-english
 encode_method=lgesql # irnet, rgatsql, lgesql
 local_and_nonlocal=$1 # mmc, msde, local, global
 gnn_hidden_size=512

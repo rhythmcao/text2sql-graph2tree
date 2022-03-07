@@ -19,13 +19,14 @@ class CachedTranslator():
 
     def __init__(self, cache_folder=None) -> None:
         super(CachedTranslator, self).__init__()
-        self.cache_folder = cache_folder if cache_folder is not None else DATASETS['cspider_raw']['cache_folder']
-        self.translator = EasyNMT('mbart50_m2m', cache_folder=cache_folder, load_translator=True) # mbart50_m2m, mbart50_m2en, mbart50_en2m, m2m_100_418M, m2m_100_1.2B
         self.zh2en, self.en2zh = {}, {}
-        zh2en_path = os.path.join(self.cache_folder, 'translation.zh2en')
-        self.zh2en = json.load(open(zh2en_path, 'r')) if os.path.exists(zh2en_path) else {}
-        en2zh_path = os.path.join(self.cache_folder, 'translation.en2zh')
+        self.cache_folder = cache_folder if cache_folder is not None else DATASETS['cspider_raw']['cache_folder']
+        model_name = 'mbart50_m2m'
+        self.translator = EasyNMT(model_name, cache_folder=self.cache_folder, load_translator=True)
+        en2zh_path = os.path.join(self.cache_folder, 'translation.en2zh.' + model_name)
         self.en2zh = json.load(open(en2zh_path, 'r')) if os.path.exists(en2zh_path) else {}
+        zh2en_path = os.path.join(self.cache_folder, 'translation.zh2en.' + model_name)
+        self.zh2en = json.load(open(zh2en_path, 'r')) if os.path.exists(zh2en_path) else {}
 
     def translate(self, query: str, target_lang: str = 'en'):
         query = query.lower()
@@ -235,6 +236,7 @@ class InputProcessor():
             s_q_mat = np.array([[f'{category}-question-nomatch'] * q_num for _ in range(s_num)], dtype=dtype)
             # forward translation, schema items en -> zh
             for sid, toks in enumerate(schema_toks):
+                if category == 'column' and sid == 0: continue
                 filtered_toks = [t for t in toks if t not in self.stopwords_en and t not in self.punctuations]
                 if len(filtered_toks) == 0: continue
                 exact_match_at_end = True if len(toks) == 1 else False
@@ -371,19 +373,22 @@ if __name__ == '__main__':
     zh2en_path, en2zh_path = os.path.join(DATASETS['cspider_raw']['cache_folder'], 'translation.zh2en'), os.path.join(DATASETS['cspider_raw']['cache_folder'], 'translation.en2zh')
     zh2en, en2zh = json.load(open(zh2en_path, 'r')), json.load(open(en2zh_path, 'r'))
 
+    import torch
     # mbart50_m2m, mbart50_m2en, mbart50_en2m, m2m_100_418M, m2m_100_1.2B
-    model_name = 'mbart50_m2m' # 'm2m_100_1.2B', 'm2m_100_418M'
+    model_name = 'mbart50_m2m' # 'mbart50_m2m', 'm2m_100_1.2B', 'm2m_100_418M'
     translator = EasyNMT(model_name, cache_folder='./pretrained_models', load_translator=True)
     zh_sent = list(zh2en.keys())
-    en_sent = translator.translate(zh_sent, source_lang='zh', target_lang='en', batch_size=32, show_progress_bar=True)
+    en_sent = translator.translate(zh_sent, source_lang='zh', target_lang='en', batch_size=50, show_progress_bar=False)
     en_sent = [s.lower() for s in en_sent]
     zh2en = dict(zip(zh_sent, en_sent))
     json.dump(zh2en, open(zh2en_path + '.' + model_name, 'w'), indent=4, ensure_ascii=False)
-
+    print('Finishing translating zh -> en: %s' % (len(zh2en)))
+    torch.cuda.empty_cache()
     # model_name = 'mbart50_en2m'
     # translator = EasyNMT(model_name, cache_folder='./pretrained_models', load_translator=True)
     en_sent = list(en2zh.keys())
-    zh_sent = translator.translate(en_sent, source_lang='en', target_lang='zh', batch_size=32, show_progress_bar=True)
+    zh_sent = translator.translate(en_sent, source_lang='en', target_lang='zh', batch_size=50, show_progress_bar=False)
     zh_sent = [s.lower() for s in zh_sent]
     en2zh = dict(zip(en_sent, zh_sent))
     json.dump(en2zh, open(en2zh_path + '.' + model_name, 'w'), indent=4, ensure_ascii=False)
+    print('Finishing translating en -> zh: %s' % (len(en2zh)))

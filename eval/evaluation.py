@@ -31,7 +31,7 @@ import copy
 from collections import defaultdict
 import re
 import six
-
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from eval.eval_utils import evaluate_NL2SQL
 from eval.eval_utils import is_float
 

@@ -77,7 +77,8 @@ class InputProcessor():
         self.db_dir = db_dir
         self.db_content, self.bridge = db_content, bridge
         self.nlp_en = stanza.Pipeline('en', processors='tokenize,pos')#, use_gpu=False)
-        tools = LAC(mode='lac')
+        # tools = LAC(mode='lac')
+        tools = LAC(mode='seg')
         self.nlp_zh = lambda s: tools.run(s)
         self.stopwords_en = set(stopwords.words("english")) - {'no'}
         self.stopwords_zh = set(STOPWORDS)
@@ -171,14 +172,15 @@ class InputProcessor():
         # chinese sentence, use LAC tokenize
         question = quote_normalization(entry['question'])
         # remove all blank symbols
-        filtered = filter(lambda x: x[0] not in list(' \t\n\r\f\v'), zip(*self.nlp_zh(question)))
-        tok_tag = list(zip(*filtered))
-        cased_toks, pos_tags = list(tok_tag[0]), list(tok_tag[1])
+        # filtered = filter(lambda x: x[0] not in list(' \t\n\r\f\v'), zip(*self.nlp_zh(question)))
+        # tok_tag = list(zip(*filtered))
+        # cased_toks, pos_tags = list(tok_tag[0]), list(tok_tag[1])
+        cased_toks = re.sub(r'\s+', ' ', ' '.join(self.nlp_zh(question))).split(' ')
         uncased_toks = [t.lower() for t in cased_toks]
         entry['cased_question_toks'] = cased_toks
         entry['uncased_question_toks'] = uncased_toks
         # r, p, c, u, xc, w are tags representing meaningless words
-        entry['pos_tags'] = pos_tags # tags and meanings: https://github.com/baidu/lac
+        # entry['pos_tags'] = pos_tags # tags and meanings: https://github.com/baidu/lac
 
         # word index to char id mapping
         entry['char2word_id_mapping'] = [idx for idx, w in enumerate(uncased_toks) for _ in range(len(w))]
@@ -225,14 +227,15 @@ class InputProcessor():
             else:
                 if prev_is_bracket and wrapped:
                     start = j
-                elif (not wrapped) and pos_tags[j] in ['nz', 'nw', 'PER', 'LOC', 'ORG', 'TIME']:
-                    entities.append((word, (j, j + 1)))
+                # elif (not wrapped) and pos_tags[j] in ['nz', 'nw', 'PER', 'LOC', 'ORG', 'TIME']:
+                    # entities.append((word, (j, j + 1)))
                 prev_is_bracket = False
         return numbers, entities
 
     def schema_linking(self, entry: dict, db: dict, verbose: bool = False):
         """ Perform schema linking: both question and database need to be preprocessed """
-        question_toks, pos_tags = entry['uncased_question_toks'], entry['pos_tags']
+        # question_toks, pos_tags = entry['uncased_question_toks'], entry['pos_tags']
+        question_toks = entry['uncased_question_toks']
         table_toks, column_toks = db['table_toks'], db['column_toks']
         table_names, column_names = db['table_names'], list(map(lambda x: x[1], db['column_names']))
         question, q_num, dtype = ''.join(question_toks), len(question_toks), '<U100'
@@ -264,7 +267,8 @@ class InputProcessor():
                             matched_pairs[match_type].append(str((schema_names[sid], sid, span, start, end)))
             # backward translation, question_tok zh -> en, increase recall
             for qid, tok in enumerate(question_toks):
-                if tok in self.stopwords_zh or tok in self.punctuations or pos_tags[qid] in ['r', 'p', 'c', 'u', 'xc', 'w']: continue
+                if tok in self.stopwords_zh or tok in self.punctuations: continue
+                # if tok in self.stopwords_zh or tok in self.punctuations or pos_tags[qid] in ['r', 'p', 'c', 'u', 'xc', 'w']: continue
                 tok_en = self.translator.translate(tok, target_lang='en')
                 if tok_en in self.stopwords_en: continue
                 for sid, name in enumerate(schema_names):
@@ -291,7 +295,8 @@ class InputProcessor():
             conn = sqlite3.connect(db_file)
             conn.text_factory = lambda b: b.decode(errors='ignore')
             conn.execute('pragma foreign_keys=ON')
-            numbers, entities = self.extract_numbers_and_entities(question_toks, pos_tags)
+            # numbers, entities = self.extract_numbers_and_entities(question_toks, pos_tags)
+            numbers, entities = self.extract_numbers_and_entities(question_toks, None)
             for cid, (tid, col_name) in enumerate(db['column_names_original']):
                 if cid == 0 or 'id' in column_toks[cid]: # ignore * and special token 'id'
                     continue

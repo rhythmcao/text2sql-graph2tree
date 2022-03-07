@@ -6,23 +6,8 @@ from itertools import product, combinations
 from numpy.core.fromnumeric import cumsum
 from utils.constants import MAX_RELATIVE_DIST
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import is_number, quote_normalization, QUOTATION_MARKS
+from preprocess.process_utils import is_number, quote_normalization, QUOTATION_MARKS, load_db_contents, extract_db_contents
 from preprocess.dusql.bridge_content_encoder import STOPWORDS, get_database_matches
-
-def load_db_contents(db_path):
-    contents = json.load(open(db_path, 'r'))
-    contents = {db['db_id']: db['tables'] for db in contents}
-    return contents
-
-def extract_db_contents(contents, db):
-    db_cells = [[]]
-    cells = contents[db['db_id']]
-    for table_name in db['table_names']:
-        all_column_cells = zip(*cells[table_name]['cell'])
-        for column_cells in all_column_cells:
-            column_cells = [str(cv).strip() for cv in set(column_cells) if str(cv).strip()]
-            db_cells.append(list(set(column_cells)))
-    return db_cells
 
 NUMBER_REPLACEMENT = list(zip('０１２３４５６７８９％：．～', '0123456789%:.~'))
 

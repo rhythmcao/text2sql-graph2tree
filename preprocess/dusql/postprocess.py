@@ -10,7 +10,7 @@ from collections import Counter
 from utils.constants import DATASETS
 from asdl.transition_system import SelectValueAction
 from preprocess.process_utils import is_number, is_int, BOOL_TRUE_ZH, BOOL_FALSE_ZH, ZH_NUMBER, ZH_UNIT, ZH_UNIT_MAPPING, ZH_RESERVE_CHARS, ZH_NUM2WORD, ZH_WORD2NUM
-from preprocess.dusql.input_utils import load_db_contents, extract_db_contents
+from preprocess.process_utils import load_db_contents, extract_db_contents
 
 def compare_and_extract_date(t1, t2):
     y1, m1, d1 = t1.split('-')

@@ -1,5 +1,5 @@
 #coding=utf8
-import re, math
+import re, math, json
 import cn2an
 from itertools import chain
 from typing import List, Set, Tuple
@@ -68,6 +68,24 @@ def float_equal(val1, val2, multiplier=1):
     elif math.fabs(val1 * multiplier - val2) < 1e-5 or math.fabs(val1 - val2 * multiplier) < 1e-6: return True
     return False
 
+def load_db_contents(db_path):
+    contents = json.load(open(db_path, 'r'))
+    contents = {db['db_id']: db['tables'] for db in contents}
+    return contents
+
+def extract_db_contents(contents, db):
+    db_cells = [[]]
+    cells = contents[db['db_id']]
+    for tab_id, table_name in enumerate(db['table_names']):
+        all_column_cells = list(zip(*cells[table_name]['cell']))
+        if all_column_cells:
+            for column_cells in all_column_cells:
+                column_cells = [str(cv).strip() for cv in set(column_cells) if str(cv).strip()]
+                db_cells.append(list(set(column_cells)))
+        else:
+            column_nums = len([c for c in db['column_names'] if c[0] == tab_id])
+            db_cells.extend([[] for _ in range(column_nums)])
+    return db_cells
 
 def quote_normalization(question):
     """ Normalize quotation marks """

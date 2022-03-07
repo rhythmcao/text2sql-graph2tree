@@ -174,7 +174,7 @@ class UnParser():
         ctr_name = cond_ast.production.constructor.name
         value_str = '"value"'
         if 'SQL' in ctr_name:
-            value_str = self.unparse_sql(cond_ast[self.grammar.get_field_by_text('sql cond_sql')][0].value, db, *args, **kargs)
+            value_str = '( ' + self.unparse_sql(cond_ast[self.grammar.get_field_by_text('sql cond_sql')][0].value, db, *args, **kargs) + ' )'
         cmp_op_str = cond_ast[self.grammar.get_field_by_text('cmp_op cmp_op')][0].value.production.constructor.name
         cmp_op = CMP_OP_MAPPING[cmp_op_str]
         if cmp_op == 'BETWEEN':

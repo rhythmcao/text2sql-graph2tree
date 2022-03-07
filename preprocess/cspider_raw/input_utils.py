@@ -12,7 +12,16 @@ from numpy.core.fromnumeric import cumsum
 from utils.constants import MAX_RELATIVE_DIST, DATASETS
 from preprocess.graph_utils import GraphProcessor
 from preprocess.process_utils import QUOTATION_MARKS, quote_normalization, is_number
-from preprocess.dusql.bridge_content_encoder import STOPWORDS
+
+
+STOPWORDS = set([
+    '的', '是', '和', '什么', '多少', '有', '在', '显示', '列出', '找出', '返回', '中', '哪些', '按', '为', '了', '或', '查找', '找到', '是什么', '它',
+    '哪个', '过', '他们', '与', '那些', '叫', '种', '被', '给', '个', '任何', '以上', '给出', '对于', '上', '下', '具有', '谁', '哪', '我', '多少次',
+    '以及', '以', '来自', '由', '请', '所在', '且', '所', '提供', '对应', '把', '我们', '其', '都', '从', '但', '并', '哪一个', '哪里', '属于', '又',
+    '什么时候', '出', '里', '作为', '以下', '及其', '告诉我', '每一个', '这个', '那个', '这些', '之', '不在', '既', '之前', '以后', '能', '用', '该',
+    '在哪里', '于', '这里', '那里', '而且', '它们', '并且', '吗', '他', '找', '使', '那', '这', '某些', '来', '做', '及', '呢', '而', '她', '她们',
+    '在那里', '什么地方', '何', '哪所', '那种', '有没有', '请问', '什么样', '称为', '使用', '可以', '之后', '前', '后', '关于', "拥有", '到'
+])
 
 
 class CachedTranslator():
@@ -21,11 +30,10 @@ class CachedTranslator():
         super(CachedTranslator, self).__init__()
         self.zh2en, self.en2zh = {}, {}
         self.cache_folder = cache_folder if cache_folder is not None else DATASETS['cspider_raw']['cache_folder']
-        model_name = 'mbart50_m2m'
-        self.translator = EasyNMT(model_name, cache_folder=self.cache_folder, load_translator=True)
-        en2zh_path = os.path.join(self.cache_folder, 'translation.en2zh.' + model_name)
+        self.translator = EasyNMT('mbart50_m2m', cache_folder=self.cache_folder, load_translator=True)
+        en2zh_path = os.path.join(self.cache_folder, 'translation.en2zh')
         self.en2zh = json.load(open(en2zh_path, 'r')) if os.path.exists(en2zh_path) else {}
-        zh2en_path = os.path.join(self.cache_folder, 'translation.zh2en.' + model_name)
+        zh2en_path = os.path.join(self.cache_folder, 'translation.zh2en')
         self.zh2en = json.load(open(zh2en_path, 'r')) if os.path.exists(zh2en_path) else {}
 
     def translate(self, query: str, target_lang: str = 'en'):
@@ -68,7 +76,7 @@ class InputProcessor():
         super(InputProcessor, self).__init__()
         self.db_dir = db_dir
         self.db_content, self.bridge = db_content, bridge
-        self.nlp_en = stanza.Pipeline('en', processors='tokenize,pos,lemma')#, use_gpu=False)
+        self.nlp_en = stanza.Pipeline('en', processors='tokenize,pos')#, use_gpu=False)
         tools = LAC(mode='lac')
         self.nlp_zh = lambda s: tools.run(s)
         self.stopwords_en = set(stopwords.words("english")) - {'no'}
@@ -374,21 +382,19 @@ if __name__ == '__main__':
     zh2en, en2zh = json.load(open(zh2en_path, 'r')), json.load(open(en2zh_path, 'r'))
 
     import torch
-    # mbart50_m2m, mbart50_m2en, mbart50_en2m, m2m_100_418M, m2m_100_1.2B
-    model_name = 'mbart50_m2m' # 'mbart50_m2m', 'm2m_100_1.2B', 'm2m_100_418M'
+    model_name = 'mbart50_m2m'
     translator = EasyNMT(model_name, cache_folder='./pretrained_models', load_translator=True)
     zh_sent = list(zh2en.keys())
     en_sent = translator.translate(zh_sent, source_lang='zh', target_lang='en', batch_size=50, show_progress_bar=False)
     en_sent = [s.lower() for s in en_sent]
     zh2en = dict(zip(zh_sent, en_sent))
-    json.dump(zh2en, open(zh2en_path + '.' + model_name, 'w'), indent=4, ensure_ascii=False)
+    json.dump(zh2en, open(zh2en_path, 'w'), indent=4, ensure_ascii=False)
     print('Finishing translating zh -> en: %s' % (len(zh2en)))
     torch.cuda.empty_cache()
-    # model_name = 'mbart50_en2m'
-    # translator = EasyNMT(model_name, cache_folder='./pretrained_models', load_translator=True)
+
     en_sent = list(en2zh.keys())
     zh_sent = translator.translate(en_sent, source_lang='en', target_lang='zh', batch_size=50, show_progress_bar=False)
     zh_sent = [s.lower() for s in zh_sent]
     en2zh = dict(zip(en_sent, zh_sent))
-    json.dump(en2zh, open(en2zh_path + '.' + model_name, 'w'), indent=4, ensure_ascii=False)
+    json.dump(en2zh, open(en2zh_path, 'w'), indent=4, ensure_ascii=False)
     print('Finishing translating en -> zh: %s' % (len(en2zh)))

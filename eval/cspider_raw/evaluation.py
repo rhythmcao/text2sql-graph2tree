@@ -607,6 +607,7 @@ def evaluate(gold, predict, db_dir, etype, kmaps):
                         scores[level]['partial'][type_]['rec'] + scores[level]['partial'][type_]['acc'])
 
     print_scores(scores, etype)
+    return scores
 
 
 def eval_exec_match(db, p_str, g_str, pred, gold):

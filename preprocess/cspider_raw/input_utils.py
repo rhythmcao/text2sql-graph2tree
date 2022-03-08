@@ -257,7 +257,7 @@ class InputProcessor():
                 toks_zh = self.translator.batched_translate(filtered_toks, target_lang='zh')
                 for j, span in enumerate(toks_zh):
                     span = span.replace(' ', '') # chinese question exclude whitespaces
-                    match_type = 'exact' if j == len(toks_zh) - 1 and exact_match_at_end else 'partial'
+                    match_type = 'partial' #'exact' if j == len(toks_zh) - 1 and exact_match_at_end else 'partial'
                     if span in question and span not in self.stopwords_zh:
                         start_id = question.index(span)
                         start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(span) - 1] + 1
@@ -273,7 +273,7 @@ class InputProcessor():
                 if tok_en in self.stopwords_en: continue
                 for sid, name in enumerate(schema_names):
                     if (tok_en in name or name in tok_en) and 'exact' not in q_s_mat[qid, sid]:
-                        match_type = 'exact' if name in tok_en else 'partial'
+                        match_type = 'partial' #'exact' if name in tok_en else 'partial'
                         q_s_mat[qid, sid] = f'question-{category}-{match_type}match'
                         s_q_mat[sid, qid] = f'{category}-question-{match_type}match'
                         if verbose:

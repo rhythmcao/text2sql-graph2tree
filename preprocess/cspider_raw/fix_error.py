@@ -207,7 +207,7 @@ def amend_examples_in_dataset(dataset, schemas, tables, verbose=True):
     return dataset
 
 
-def fix_two_special_tables(tables):
+def fix_special_tables(tables):
     for db in tables:
         if db['db_id'] == 'scholar':
             db['table_names'] = ['venue', 'author', 'dataset', 'journal', 'key phrase', 'paper', 'cite', 'paper dataset', 'paper key phrase', 'writes']
@@ -215,6 +215,16 @@ def fix_two_special_tables(tables):
         elif db['db_id'] == 'formula_1':
             db['table_names'] = ['circuits', 'races', 'drivers', 'status', 'seasons', 'constructors', 'constructor standings', 'results', 'driver standings', 'constructor results', 'qualifying', 'pit stops', 'lap times']
             db['column_names'] = [[-1, '*'], [0, 'circuit id'], [0, 'circuit reference'], [0, 'name'], [0, 'location'], [0, 'country'], [0, 'latitude'], [0, 'longitude'], [0, 'altitude'], [0, 'url'], [1, 'race id'], [1, 'year'], [1, 'round'], [1, 'circuit id'], [1, 'name'], [1, 'date'], [1, 'time'], [1, 'url'], [2, 'driver id'], [2, 'driver reference'], [2, 'number'], [2, 'code'], [2, 'forename'], [2, 'surname'], [2, 'dob'], [2, 'nationality'], [2, 'url'], [3, 'status id'], [3, 'status'], [4, 'year'], [4, 'url'], [5, 'constructor id'], [5, 'constructor reference'], [5, 'name'], [5, 'nationality'], [5, 'url'], [6, 'constructor standings id'], [6, 'race id'], [6, 'constructor id'], [6, 'points'], [6, 'position'], [6, 'position text'], [6, 'wins'], [7, 'result id'], [7, 'race id'], [7, 'driver id'], [7, 'constructor id'], [7, 'number'], [7, 'grid'], [7, 'position'], [7, 'position text'], [7, 'position order'], [7, 'points'], [7, 'laps'], [7, 'time'], [7, 'milliseconds'], [7, 'fastest lap'], [7, 'rank'], [7, 'fastest lap time'], [7, 'fastest lap speed'], [7, 'status id'], [8, 'driver standings id'], [8, 'race id'], [8, 'driver id'], [8, 'points'], [8, 'position'], [8, 'position text'], [8, 'wins'], [9, 'constructor results id'], [9, 'race id'], [9, 'constructor id'], [9, 'points'], [9, 'status'], [10, 'qualify id'], [10, 'race id'], [10, 'driver id'], [10, 'constructor id'], [10, 'number'], [10, 'position'], [10, 'q1'], [10, 'q2'], [10, 'q3'], [11, 'race id'], [11, 'driver id'], [11, 'stop'], [11, 'lap'], [11, 'time'], [11, 'duration'], [11, 'milliseconds'], [12, 'race id'], [12, 'driver id'], [12, 'lap'], [12, 'position'], [12, 'time'], [12, 'milliseconds']]
+        elif db['db_id'] == 'tracking_share_transactions':
+            db['column_types'][13] = 'number'
+        elif db['db_id'] == 'apartment_rentals':
+            db['column_types'][14] = 'number'
+        elif db['db_id'] == 'customers_and_addresses':
+            db['column_types'][-1] = 'number'
+        elif db['db_id'] == 'department_store':
+            db['column_types'][50] = 'number'
+        elif db['db_id'] == 'customers_and_products_contacts':
+            db['column_types'][-1] = 'number'
     return tables
 
 
@@ -224,7 +234,7 @@ if __name__ == '__main__':
     table_path = os.path.join(data_dir, 'tables.json')
     origin_table_path = os.path.join(data_dir, 'tables.original.json')
     update_table_path = origin_table_path if os.path.exists(origin_table_path) else table_path
-    tables = fix_two_special_tables(json.load(open(update_table_path, 'r')))
+    tables = fix_special_tables(json.load(open(update_table_path, 'r')))
     tables = amend_primary_keys(tables, verbose=True)
     tables = amend_foreign_keys(tables, verbose=True)
     tables = amend_boolean_types(tables, db_dir, verbose=True)

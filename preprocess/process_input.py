@@ -83,6 +83,6 @@ if __name__ == '__main__':
     dataset = json.load(open(dataset_path, 'r'))
     output_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
     dataset = process_dataset_input(processor, dataset, tables, output_path, args.skip_large, verbose=args.verbose)
-    if args.dataset == 'cspider_raw':
+    if 'cspider' in args.dataset:
         processor.translator.save_translation_memory()
     print('Dataset preprocessing costs %.4fs .' % (time.time() - start_time))

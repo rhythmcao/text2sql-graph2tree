@@ -34,7 +34,7 @@ ABBREV_MAPPING = {
 }
 
 CMP_OP = ('not_in', 'between', '==', '>', '<', '>=', '<=', '!=', 'in', 'like')
-PLACEHOLDER = '@' # @ never appears in the dataset
+PLACEHOLDER = '|' # | never appears in the dataset
 
 class ValueExtractor():
 
@@ -61,7 +61,7 @@ class ValueExtractor():
         offset = SelectValueAction.size('dusql')
         for idx, val in enumerate(candidates):
             val.set_value_id(idx + offset)
-            cased_value = ''.join(cased_question_toks[val.matched_index[0]:val.matched_index[1]])
+            cased_value = ' '.join(cased_question_toks[val.matched_index[0]:val.matched_index[1]])
             val.set_matched_cased_value(cased_value)
         entry['values'], entry['candidates'] = values, candidates
         return entry
@@ -568,7 +568,7 @@ def add_value_from_char_idx(index_pairs, question_toks, sqlvalue, entry):
     start_id, end_id = index_pairs
     start = entry['char2word_id_mapping'][start_id]
     end = entry['char2word_id_mapping'][end_id - 1] + 1
-    value = ''.join(question_toks[start: end])
+    value = ' '.join(question_toks[start: end])
     candidate = ValueCandidate(matched_index=(start, end), matched_value=value)
     sqlvalue.add_candidate(candidate)
     question_toks[start: end] = [PLACEHOLDER * len(question_toks[idx]) for idx in range(start, end)]

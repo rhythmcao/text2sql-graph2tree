@@ -12,7 +12,7 @@ from model.model_constructor import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--read_model_path', type=str, required=True, help='path to saved model, at least containing model.bin, params.json, order.bin')
-parser.add_argument('--output_file', default='dusql.sql', help='output predicted sql file')
+parser.add_argument('--output_file', default='cspider.sql', help='output predicted sql file')
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
 parser.add_argument('--ts_order', choices=['controller', 'enum'], default='controller', help='input node selection method')
@@ -24,7 +24,7 @@ assert not DEBUG
 params = json.load(open(os.path.join(args.read_model_path, 'params.json'), 'r'), object_hook=lambda d: Namespace(**d))
 params.lazy_load = True # load PLM from AutoConfig instead of AutoModel.from_pretrained(...)
 # Example configuration
-Example.configuration('dusql', plm=params.plm, encode_method=params.encode_method, ts_order_path=os.path.join(args.read_model_path, 'order.bin'))
+Example.configuration('cspider', plm=params.plm, encode_method=params.encode_method, ts_order_path=os.path.join(args.read_model_path, 'order.bin'))
 # load test dataset
 dataset = Example.load_dataset('test')
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=Example.collate_fn)

@@ -34,7 +34,7 @@ def process_dataset_output(processor, dataset, tables, output_path=None, skip_er
             entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)
             processed_dataset.append(entry)
         except Exception as e:
-            print('Skip instance (%s): [%s]' % (entry['question_id'], '|'.join(entry['cased_question_toks'])))
+            print('Skip instance: [%s]' % ('|'.join(entry['cased_question_toks'])))
             print('Query: %s' % (entry['query']))
             print('SQL: %s' % (json.dumps(entry['sql'], ensure_ascii=False)))
             # exc_type, exc_value, exc_traceback_obj = sys.exc_info()

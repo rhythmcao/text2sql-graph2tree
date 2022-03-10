@@ -11,6 +11,7 @@ from utils.constants import DATASETS
 from asdl.transition_system import SelectValueAction
 from preprocess.process_utils import is_number, is_int, BOOL_TRUE_ZH, BOOL_FALSE_ZH, ZH_NUMBER, ZH_UNIT, ZH_UNIT_MAPPING, ZH_RESERVE_CHARS, ZH_NUM2WORD, ZH_WORD2NUM
 from preprocess.process_utils import load_db_contents, extract_db_contents
+from preprocess.dusql.value_utils import PLACEHOLDER
 
 def compare_and_extract_date(t1, t2):
     y1, m1, d1 = t1.split('-')
@@ -126,7 +127,8 @@ class ValueProcessor():
             value_candidates[value_id - SelectValueAction.size('dusql')].matched_cased_value
         # chinese chars do not have whitespace, while whitespace is needed between english words
         # when ValueCandidate is constructed in models/encoder/auxiliary.py, whitespaces are inserted in matched_value
-        raw_value = re.sub(r'([^a-zA-Z])(\s+)([^a-zA-Z])', lambda match_obj: match_obj.group(1) + match_obj.group(3), raw_value)
+        raw_value= re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + PLACEHOLDER + match_obj.group(2), raw_value)
+        raw_value = re.sub(r'\s+', '', raw_value).replace(PLACEHOLDER, ' ')
         value = self.postprocess_raw_value_string(raw_value, db, state, entry)
         return value
 

@@ -73,7 +73,7 @@ from eval.eval_utils import is_float
 CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
 JOIN_KEYWORDS = ('join', 'on', 'as')
 
-COND_OPS = ('not_in', 'between', '==', '>', '<', '>=', '<=', '!=', 'in', 'like')
+COND_OPS = ('not_in', 'between', '==', '>', '<', '>=', '<=', '!=', 'in', 'like', 'not_like')
 UNIT_OPS = ('none', '-', '+', "*", '/')
 AGG_OPS = ('none', 'max', 'min', 'count', 'sum', 'avg')
 TABLE_TYPE = {
@@ -369,8 +369,8 @@ def parse_condition(toks, start_idx, tables_with_alias, schema, default_tables=N
 
         op_str = toks[idx]
         if op_str == 'not':
-            assert toks[idx + 1] == 'in', '"not" must followed by "in"'
-            op_str = 'not_in'
+            assert toks[idx + 1] in ['in', 'like'], '"not" must followed by "in" or "like"'
+            op_str = 'not_in' if toks[idx + 1] == 'in' else 'not_like'
             idx += 1
         assert idx < len_ and op_str in COND_OPS, "Error condition: idx: {}, tok: {},, toks: {}".format(idx, op_str, toks)
         op_id = COND_OPS.index(op_str)

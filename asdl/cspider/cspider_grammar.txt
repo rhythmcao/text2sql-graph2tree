@@ -40,7 +40,7 @@
 # 4. does not handle the JOIN of two same tables in FROM clause
 # 5. for groupby items, we use col_id, while col_unit for other clauses
 
-tab_id, col_id
+tab_id, col_id, val_id
 
 sql = Intersect(sql_unit left_sql_unit, sql_unit right_sql_unit)
         | Union(sql_unit left_sql_unit, sql_unit right_sql_unit)
@@ -60,30 +60,37 @@ sql_unit = FromSelectWhereGroupByOrderBy(from from, select select, condition whe
 # [field:low,high] means the least number of fields is low, while the most is high
 # [field:,high]: low is default to 1
 # [field:low,]: high is default to pre-defined threshold, e.g. 10
-select = SelectColumn[col_unit col_unit:1,6](col_unit col_unit)
+select = SelectColumn[col_unit col_unit:1,5](col_unit col_unit)
 
 from = FromTableOne(tab_id tab_id)
-        | FromTable[tab_id tab_id:2,7](tab_id tab_id, tab_join tab_join)
+        | FromTableTwoOne(tab_id tab_id, tab_id tab_id, join join)
+        | FromTableTwoTwo(tab_id tab_id, tab_id tab_id, join join, join join)
+        | FromTableThreeTwo(tab_id tab_id, tab_id tab_id, tab_id tab_id, join join, join join)
+        | FromTableThreeThree(tab_id tab_id, tab_id tab_id, tab_id tab_id, join join, join join, join join)
+        | FromTableFourThree(tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, join join, join join, join join)
+        | FromTableFiveFour(tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, join join, join join, join join, join join)
+        | FromTableSixFive(tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, join join, join join, join join, join join, join join)
+        | FromTableSevenSix(tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, tab_id tab_id, join join, join join, join join, join join, join join, join join)
         | FromSQL(sql from_sql)
-
-tab_join = TableJoin[join join:1,6](join join)
 
 join = ColumnJoin(col_id col_id, col_id col_id)
 
-groupby = GroupByColumn[col_id col_id:1,3](col_id col_id)
-        | GroupByHavingColumn[col_id col_id:1,3](col_id col_id, condition having)
+groupby = GroupByColumn[col_id col_id:1,2](col_id col_id)
+        | GroupByHavingColumn[col_id col_id:1,2](col_id col_id, condition having)
 
 orderby = OrderByColumn[col_unit col_unit:1,3](col_unit col_unit, order order)
-        | OrderByLimitColumn[col_unit col_unit:1,3](col_unit col_unit, order order)
+        | OrderByLimitColumnOne(col_unit col_unit, order order, val_id limit)
 
 order = Asc | Desc
 
 condition = AndCondition[condition condition:2,4](condition condition)
-        | OrCondition[condition condition:2,3](condition condition)
-        | CmpCondition(cmp_op cmp_op, col_unit col_unit)
-        | CmpSQLCondition(cmp_op cmp_op, col_unit col_unit, sql cond_sql)
+        | OrConditionTwo(condition condition, condition condition)
+        | BetweenCondition(col_unit col_unit, value left_value, value right_value)
+        | CmpCondition(cmp_op cmp_op, col_unit col_unit, value value)
 
-cmp_op = Between | Equal | NotEqual | GreaterThan | GreaterEqual | LessThan | LessEqual | Like | NotLike | In | NotIn
+cmp_op = Equal | NotEqual | GreaterThan | GreaterEqual | LessThan | LessEqual | Like | NotLike | In | NotIn
+
+value = SQLValue(sql value_sql) | LiteralValue(val_id val_id) | ColumnValue(col_id col_id)
 
 col_unit = UnaryColumnUnit(agg_op agg_op, col_id col_id)
         | BinaryColumnUnit(agg_op agg_op, unit_op unit_op, col_id left_col_id, col_id right_col_id)

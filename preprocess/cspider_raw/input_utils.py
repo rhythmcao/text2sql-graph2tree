@@ -287,7 +287,7 @@ class InputProcessor():
         self.column_pmatch += np.sum(q_col_mat == 'question-column-partialmatch')
         self.column_ematch += np.sum(q_col_mat == 'question-column-exactmatch')
 
-        if self.db_content:
+        if False:
             column_matched_pairs['value'] = []
             db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
             if not os.path.exists(db_file):

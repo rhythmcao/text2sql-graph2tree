@@ -125,7 +125,7 @@ if not args.testing:
         if is_master: # only evaluate on the master GPU
             start_time = time.time()
             em, ex = decode(base_model, evaluator, dev_dataset, os.path.join(exp_path, 'dev.iter' + str(i)), batch_size=args.test_batch_size, beam_size=args.beam_size, ts_order='enum', acc_type='eg-sql', etype='all', device=device)['sql']
-            dev_acc = (em + ex) / 2.0 if Example.dataset == 'spider' else em if Example.dataset == 'cspider' else ex
+            dev_acc = (em + ex) / 2.0 if Example.dataset == 'spider' else em if Example.dataset.startswith('cspider') else ex
             logger.info(f"Evaluation: \tEpoch: {i:d}\tTime: {time.time() - start_time:.2f}s\tDev sql exact set match/execution acc: {em:.4f}/{ex:.4f}")
             if dev_acc >= best_result['dev_acc']:
                 best_result['dev_acc'] = dev_acc

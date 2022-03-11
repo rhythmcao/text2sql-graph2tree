@@ -24,6 +24,7 @@ import json
 import sqlite3
 import traceback
 import argparse
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from preprocess.cspider_raw.process_sql import tokenize, get_schema, get_tables_with_alias, Schema, get_sql
 

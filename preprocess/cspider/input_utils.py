@@ -47,7 +47,7 @@ class CachedTranslator():
                 # res = 'null' # comment the line below to firstly gather all phrases to be translated
                 res = self.translator.translate(query, source_lang='en', target_lang='zh').lower()
                 self.en2zh[query] = res
-        return query
+        return res
 
     def batched_translate(self, queries: list = [], target_lang: str = 'en'):
         return [self.translate(q, target_lang=target_lang) for q in queries]
@@ -68,7 +68,6 @@ class InputProcessor():
         self.db_dir = db_dir
         self.db_content, self.bridge = db_content, bridge
         self.nlp_en = stanza.Pipeline('en', processors='tokenize,pos')#, use_gpu=False)
-        # tools = LAC(mode='lac')
         tools = LAC(mode='seg')
         self.nlp_zh = lambda s: tools.run(s)
         self.stopwords_en = set(stopwords.words("english")) - {'no'}
@@ -163,16 +162,11 @@ class InputProcessor():
         # chinese sentence, use LAC tokenize
         question = quote_normalization(entry['question'])
         # remove all blank symbols
-        # filtered = filter(lambda x: x[0] not in list(' \t\n\r\f\v'), zip(*self.nlp_zh(question)))
-        # tok_tag = list(zip(*filtered))
-        # cased_toks, pos_tags = list(tok_tag[0]), list(tok_tag[1])
         question = ' '.join(self.nlp_zh(question)).replace('ACL2014', 'ACL 2014')
         cased_toks = re.sub(r'\s+', ' ', question).split(' ')
         uncased_toks = [t.lower() for t in cased_toks]
         entry['cased_question_toks'] = cased_toks
         entry['uncased_question_toks'] = uncased_toks
-        # r, p, c, u, xc, w are tags representing meaningless words
-        # entry['pos_tags'] = pos_tags # tags and meanings: https://github.com/baidu/lac
 
         # word index to char id mapping
         entry['char2word_id_mapping'] = [idx for idx, w in enumerate(uncased_toks) for _ in range(len(w))]
@@ -219,14 +213,11 @@ class InputProcessor():
             else:
                 if prev_is_bracket and wrapped:
                     start = j
-                # elif (not wrapped) and pos_tags[j] in ['nz', 'nw', 'PER', 'LOC', 'ORG', 'TIME']:
-                    # entities.append((word, (j, j + 1)))
                 prev_is_bracket = False
         return numbers, entities
 
     def schema_linking(self, entry: dict, db: dict, verbose: bool = False):
         """ Perform schema linking: both question and database need to be preprocessed """
-        # question_toks, pos_tags = entry['uncased_question_toks'], entry['pos_tags']
         question_toks = entry['uncased_question_toks']
         table_toks, column_toks = db['table_toks'], db['column_toks']
         table_names, column_names = db['table_names'], list(map(lambda x: x[1], db['column_names']))
@@ -249,7 +240,7 @@ class InputProcessor():
                 toks_zh = self.translator.batched_translate(filtered_toks, target_lang='zh')
                 for j, span in enumerate(toks_zh):
                     span = span.replace(' ', '') # chinese question exclude whitespaces
-                    match_type = 'partial' #'exact' if j == len(toks_zh) - 1 and exact_match_at_end else 'partial'
+                    match_type = 'exact' if j == len(toks_zh) - 1 and exact_match_at_end else 'partial'
                     if span in question and span not in self.stopwords_zh:
                         start_id = question.index(span)
                         start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(span) - 1] + 1
@@ -260,12 +251,11 @@ class InputProcessor():
             # backward translation, question_tok zh -> en, increase recall
             for qid, tok in enumerate(question_toks):
                 if tok in self.stopwords_zh or tok in self.punctuations: continue
-                # if tok in self.stopwords_zh or tok in self.punctuations or pos_tags[qid] in ['r', 'p', 'c', 'u', 'xc', 'w']: continue
                 tok_en = self.translator.translate(tok, target_lang='en')
                 if tok_en in self.stopwords_en: continue
                 for sid, name in enumerate(schema_names):
                     if (tok_en in name or name in tok_en) and 'exact' not in q_s_mat[qid, sid]:
-                        match_type = 'partial' #'exact' if name in tok_en else 'partial'
+                        match_type = 'exact' if name in tok_en else 'partial'
                         q_s_mat[qid, sid] = f'question-{category}-{match_type}match'
                         s_q_mat[sid, qid] = f'{category}-question-{match_type}match'
                         if verbose:

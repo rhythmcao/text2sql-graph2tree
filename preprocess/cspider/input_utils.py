@@ -192,7 +192,7 @@ class InputProcessor():
             print('Tokenized:', ' '.join(entry['uncased_question_toks']))
         return entry
 
-    def extract_numbers_and_entities(self, question_toks, pos_tags):
+    def extract_numbers_and_entities(self, question_toks):
         numbers, entities = [], []
         for j, word in enumerate(question_toks):
             if is_number(word):
@@ -238,16 +238,24 @@ class InputProcessor():
                     filtered_toks.append(schema_names[sid])
                     exact_match_at_end = True
                 toks_zh = self.translator.batched_translate(filtered_toks, target_lang='zh')
-                for j, span in enumerate(toks_zh):
-                    span = span.replace(' ', '') # chinese question exclude whitespaces
+                for j, (span, span_zh) in enumerate(zip(filtered_toks, toks_zh)):
+                    span, span_zh = span.replace(' ', ''), span_zh.replace(' ', '') # exclude whitespaces
                     match_type = 'exact' if j == len(toks_zh) - 1 and exact_match_at_end else 'partial'
-                    if span in question and span not in self.stopwords_zh:
+                    if span_zh in question and span_zh not in self.stopwords_zh:
+                        start_id = question.index(span_zh)
+                        start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(span_zh) - 1] + 1
+                        q_s_mat[range(start, end), sid] = f'question-{category}-{match_type}match'
+                        s_q_mat[sid, range(start, end)] = f'{category}-question-{match_type}match'
+                        if verbose:
+                            matched_pairs[match_type].append(str((schema_names[sid], sid, span_zh, start, end)))
+                    elif span in question and span not in self.stopwords_en:
                         start_id = question.index(span)
                         start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(span) - 1] + 1
                         q_s_mat[range(start, end), sid] = f'question-{category}-{match_type}match'
                         s_q_mat[sid, range(start, end)] = f'{category}-question-{match_type}match'
                         if verbose:
                             matched_pairs[match_type].append(str((schema_names[sid], sid, span, start, end)))
+
             # backward translation, question_tok zh -> en, increase recall
             for qid, tok in enumerate(question_toks):
                 if tok in self.stopwords_zh or tok in self.punctuations: continue
@@ -277,8 +285,7 @@ class InputProcessor():
             conn = sqlite3.connect(db_file)
             conn.text_factory = lambda b: b.decode(errors='ignore')
             conn.execute('pragma foreign_keys=ON')
-            # numbers, entities = self.extract_numbers_and_entities(question_toks, pos_tags)
-            numbers, entities = self.extract_numbers_and_entities(question_toks, None)
+            numbers, entities = self.extract_numbers_and_entities(question_toks)
             for cid, (tid, col_name) in enumerate(db['column_names_original']):
                 if cid == 0 or 'id' in column_toks[cid]: # ignore * and special token 'id'
                     continue

@@ -7,7 +7,7 @@ read_model_path=''
 read_ts_order_path=''
 read_canonical_action_path=''
 
-plm=bert-base-multilingual-uncased #bert-base-multilingual-uncased, infoxlm-base, xlm-align-base, xlm-roberta-base
+plm=chinese-macbert-base
 encode_method=lgesql # irnet, rgatsql, lgesql
 local_and_nonlocal=$1 # mmc, msde, local, global
 gnn_hidden_size=512
@@ -53,7 +53,7 @@ n_best=1
 ts_order=random
 uts_order=enum
 
-python -u scripts/cspider_raw/train_and_eval.py --task $task --dataset 'cspider_raw' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
+python -u scripts/dusql/train_and_eval.py --task $task --dataset 'dusql' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
     --plm $plm --encode_method $encode_method --local_and_nonlocal $local_and_nonlocal --gnn_hidden_size $gnn_hidden_size --gnn_num_layers $gnn_num_layers --num_heads $num_heads \
     --schema_aggregation $schema_aggregation --subword_aggregation $subword_aggregation --value_aggregation $value_aggregation --score_function $score_function \
     $relation_share_layers $relation_share_heads --dropout $dropout --attn_drop $attn_drop --drop_connect $drop_connect \

@@ -7,9 +7,9 @@ read_model_path=''
 read_ts_order_path=''
 read_canonical_action_path=''
 
-plm=infoxlm-large # xlm-roberta-large, xlm-roberta-large-finetuned-conll03-english
+plm=$1 # xlm-roberta-large, xlm-roberta-large-finetuned-conll03-english
 encode_method=lgesql # irnet, rgatsql, lgesql
-local_and_nonlocal=$1 # mmc, msde, local, global
+local_and_nonlocal=msde # mmc, msde, local, global
 gnn_hidden_size=512
 gnn_num_layers=8
 num_heads=8
@@ -53,7 +53,7 @@ n_best=1
 ts_order=random
 uts_order=enum
 
-python -u scripts/spider/train_and_eval.py --task $task --dataset 'cspider_raw' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
+python -u scripts/cspider_raw/train_and_eval.py --task $task --dataset 'cspider_raw' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
     --plm $plm --encode_method $encode_method --local_and_nonlocal $local_and_nonlocal --gnn_hidden_size $gnn_hidden_size --gnn_num_layers $gnn_num_layers --num_heads $num_heads \
     --schema_aggregation $schema_aggregation --subword_aggregation $subword_aggregation --value_aggregation $value_aggregation --score_function $score_function \
     $relation_share_layers $relation_share_heads --dropout $dropout --attn_drop $attn_drop --drop_connect $drop_connect \

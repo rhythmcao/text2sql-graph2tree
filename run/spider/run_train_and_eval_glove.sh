@@ -1,5 +1,5 @@
 task=gtl
-seed=$2
+seed=999
 device=0
 ddp='' # --ddp
 testing='' # --testing
@@ -9,7 +9,7 @@ read_canonical_action_path=''
 
 embed_size=300
 encode_method=lgesql # irnet, rgatsql, lgesql
-local_and_nonlocal=$1 # mmc, msde, local, global
+local_and_nonlocal=msde # mmc, msde, local, global
 gnn_hidden_size=256
 gnn_num_layers=8
 num_heads=8

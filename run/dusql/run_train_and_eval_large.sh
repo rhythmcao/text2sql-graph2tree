@@ -1,4 +1,4 @@
-task=debug
+task=gtl
 seed=999
 device=0
 ddp='--ddp' # --ddp
@@ -7,9 +7,9 @@ read_model_path=''
 read_ts_order_path=''
 read_canonical_action_path=''
 
-plm=chinese-macbert-base
-encode_method=rgatsql # irnet, rgatsql, lgesql
-local_and_nonlocal=global # mmc, msde, local, global
+plm=chinese-macbert-large
+encode_method=lgesql # irnet, rgatsql, lgesql
+local_and_nonlocal=$1 # mmc, msde, local, global
 gnn_hidden_size=512
 gnn_num_layers=8
 num_heads=8
@@ -34,26 +34,26 @@ field_embed_size=64
 type_embed_size=64
 struct_feeding='--struct_feeding'
 
-batch_size=20
+batch_size=24
 test_batch_size=50
 grad_accumulate=1
-lr=2e-4
+lr=1e-4
 layerwise_decay=0.8
 l2=0.1
 warmup_ratio=0.1
 lr_schedule=linear
 smoothing=0.15
 eval_after_epoch=120
-max_epoch=160
+max_epoch=200
 max_norm=5
 beam_size=5
 
 gtl_size=4
 n_best=1
-ts_order=controller
-uts_order=controller
+ts_order=random
+uts_order=enum
 
-python -u scripts/spider/train_and_eval.py --task $task --dataset 'dusql' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
+python -u scripts/dusql/train_and_eval.py --task $task --dataset 'dusql' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
     --plm $plm --encode_method $encode_method --local_and_nonlocal $local_and_nonlocal --gnn_hidden_size $gnn_hidden_size --gnn_num_layers $gnn_num_layers --num_heads $num_heads \
     --schema_aggregation $schema_aggregation --subword_aggregation $subword_aggregation --value_aggregation $value_aggregation --score_function $score_function \
     $relation_share_layers $relation_share_heads --dropout $dropout --attn_drop $attn_drop --drop_connect $drop_connect \

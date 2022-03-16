@@ -14,9 +14,9 @@ from model.model_constructor import *
 
 def preprocess_database_and_dataset(db_dir='database/', table_path='data/tables.json', dataset_path='data/dev.json', encode_method='lgesql'):
     tables = json.load(open(table_path, 'r'))
-    # tables = amend_primary_keys(tables)
-    # tables = amend_foreign_keys(tables)
-    # tables = amend_boolean_types(tables, db_dir)
+    tables = amend_primary_keys(tables)
+    tables = amend_foreign_keys(tables)
+    tables = amend_boolean_types(tables, db_dir)
     dataset = json.load(open(dataset_path, 'r'))
     processor = get_input_processor(dataset='cspider_raw', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=False)
     output_tables = process_tables(processor, tables)

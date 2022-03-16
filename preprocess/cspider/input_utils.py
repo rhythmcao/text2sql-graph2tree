@@ -1,5 +1,5 @@
 #coding=utf8
-import os, sys, sqlite3, re, string, json
+import os, sys, re, string, json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import stanza
 from LAC import LAC
@@ -11,7 +11,7 @@ import numpy as np
 from numpy.core.fromnumeric import cumsum
 from utils.constants import MAX_RELATIVE_DIST, DATASETS
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import QUOTATION_MARKS, quote_normalization, is_number
+from preprocess.process_utils import QUOTATION_MARKS, quote_normalization, is_number, load_db_contents, extract_db_contents
 from preprocess.cspider_raw.input_utils import STOPWORDS
 
 
@@ -73,6 +73,8 @@ class InputProcessor():
         self.stopwords_en = set(stopwords.words("english")) - {'no'}
         self.stopwords_zh = set(STOPWORDS)
         self.punctuations = set(QUOTATION_MARKS + list('，。！￥？（）《》、；·…' + string.punctuation))
+        if self.db_content:
+            self.contents = load_db_contents(self.db_dir)
         # to reduce the number of API calls
         self.translator = CachedTranslator()
         self.graph_processor = GraphProcessor(encode_method)
@@ -151,6 +153,9 @@ class InputProcessor():
             np.concatenate([col_tab_mat, col_mat], axis=1)
         ], axis=0)
         db['relations'] = relations.tolist()
+
+        if self.db_content:
+            db['cells'] = extract_db_contents(self.contents, db)
 
         if verbose:
             print('Tables:', ', '.join([' '.join(t) for t in table_toks]))
@@ -279,55 +284,43 @@ class InputProcessor():
 
         if self.db_content:
             column_matched_pairs['value'] = []
-            db_file = os.path.join(self.db_dir, db['db_id'], db['db_id'] + '.sqlite')
-            if not os.path.exists(db_file):
-                raise ValueError('DB file not found:', db_file)
-            conn = sqlite3.connect(db_file)
-            conn.text_factory = lambda b: b.decode(errors='ignore')
-            conn.execute('pragma foreign_keys=ON')
             numbers, entities = self.extract_numbers_and_entities(question_toks)
             for cid, (tid, col_name) in enumerate(db['column_names_original']):
                 if cid == 0 or 'id' in column_toks[cid]: # ignore * and special token 'id'
                     continue
                 tab_name = db['table_names_original'][tid]
-                command = "SELECT DISTINCT \"%s\" FROM \"%s\";" % (col_name, tab_name)
-                try:
-                    cursor = conn.execute(command)
-                    cell_values = cursor.fetchall()
-                    cell_values = [str(each[0]).strip().lower() for each in cell_values if str(each).strip() != '']
-                    if len(cell_values) == 0: continue
-                    for cv in cell_values:
-                        if cv in self.stopwords_en: continue
-                        if cv in question: # need not translate
-                            start_id = question.index(cv)
-                            start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(cv) - 1] + 1
-                            for qid in range(start, end):
-                                if 'nomatch' in q_col_mat[qid, cid]:
-                                    q_col_mat[qid, cid] = 'question-column-valuematch'
-                                    col_q_mat[cid, qid] = 'column-question-valuematch'
-                                    if verbose:
-                                        column_matched_pairs['value'].append(str((cv, start, end, column_names[cid], cid)))
-                            continue
-                    # normalize numbers
-                    cell_values = [str(float(cv)) if is_number(cv) else cv for cv in cell_values]
-                    for num, (qid, _) in numbers:
-                        if num in cell_values and 'nomatch' in q_col_mat[qid, cid]:
-                            q_col_mat[qid, cid] = 'question-column-valuematch'
-                            col_q_mat[cid, qid] = 'column-question-valuematch'
-                            if verbose:
-                                column_matched_pairs['value'].append(str((column_names[cid], cid, num, qid, qid + 1)))
-                    for ent, (start, end) in entities:
-                        ent = self.translator.translate(ent, target_lang='en')
-                        cv, score = process.extractOne(ent, cell_values)
-                        if score >= 95:
-                            for qid in range(start, end):
-                                if 'nomatch' in q_col_mat[qid, cid]:
-                                    q_col_mat[qid, cid] = 'question-column-valuematch'
-                                    col_q_mat[cid, qid] = 'column-question-valuematch'
-                            if verbose:
-                                column_matched_pairs['value'].append(str((column_names[cid], cid, ent, start, end)))
-                except Exception: print('Error raised while executing SQL:', command)
-            conn.close()
+                cell_values = [each.lower() for each in db['cells'][cid]]
+                if len(cell_values) == 0: continue
+                for cv in cell_values:
+                    if cv in self.stopwords_en: continue
+                    if cv in question: # need not translate
+                        start_id = question.index(cv)
+                        start, end = entry['char2word_id_mapping'][start_id], entry['char2word_id_mapping'][start_id + len(cv) - 1] + 1
+                        for qid in range(start, end):
+                            if 'nomatch' in q_col_mat[qid, cid]:
+                                q_col_mat[qid, cid] = 'question-column-valuematch'
+                                col_q_mat[cid, qid] = 'column-question-valuematch'
+                                if verbose:
+                                    column_matched_pairs['value'].append(str((cv, start, end, column_names[cid], cid)))
+                        continue
+                # normalize numbers
+                cell_values = [str(float(cv)) if is_number(cv) else cv for cv in cell_values]
+                for num, (qid, _) in numbers:
+                    if num in cell_values and 'nomatch' in q_col_mat[qid, cid]:
+                        q_col_mat[qid, cid] = 'question-column-valuematch'
+                        col_q_mat[cid, qid] = 'column-question-valuematch'
+                        if verbose:
+                            column_matched_pairs['value'].append(str((column_names[cid], cid, num, qid, qid + 1)))
+                for ent, (start, end) in entities:
+                    ent = self.translator.translate(ent, target_lang='en')
+                    cv, score = process.extractOne(ent, cell_values)
+                    if score >= 95:
+                        for qid in range(start, end):
+                            if 'nomatch' in q_col_mat[qid, cid]:
+                                q_col_mat[qid, cid] = 'question-column-valuematch'
+                                col_q_mat[cid, qid] = 'column-question-valuematch'
+                        if verbose:
+                            column_matched_pairs['value'].append(str((column_names[cid], cid, ent, start, end)))
             self.column_vmatch += np.sum(q_col_mat == 'question-column-valuematch')
 
         # no bridge

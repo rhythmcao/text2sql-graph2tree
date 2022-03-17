@@ -5,7 +5,7 @@ from argparse import Namespace
 from preprocess.process_input import get_input_processor, process_tables, process_dataset_input
 from preprocess.cspider_raw.fix_error import amend_primary_keys, amend_foreign_keys, amend_boolean_types
 from utils.initialization import set_torch_device
-from utils.constants import DEBUG, TEST
+from utils.constants import DEBUG
 from utils.example import Example
 from utils.batch import Batch
 from torch.utils.data import DataLoader
@@ -35,7 +35,7 @@ parser.add_argument('--ts_order', default='controller', choices=['enum', 'contro
 parser.add_argument('--deviceId', type=int, default=-1, help='-1 -> CPU ; GPU index o.w.')
 args = parser.parse_args(sys.argv[1:])
 
-assert TEST and not DEBUG
+assert not DEBUG
 params = json.load(open(os.path.join(args.read_model_path, 'params.json'), 'r'), object_hook=lambda d: Namespace(**d))
 params.lazy_load = True # load PLM from AutoConfig instead of AutoModel.from_pretrained(...)
 dataset, tables = preprocess_database_and_dataset(db_dir=args.db_dir, table_path=args.table_path, dataset_path=args.dataset_path, encode_method=params.encode_method)

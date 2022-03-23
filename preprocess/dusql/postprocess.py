@@ -81,7 +81,7 @@ def parse_mixed_float_and_metric(val):
     return None
 
 
-def process_hyphen(val):   
+def process_hyphen(val):
     if '-' in val and val.count('-') == 1:
         split_vals = [v for v in val.split('-') if v.strip()]
         # determine negative number or num1-num2
@@ -158,7 +158,6 @@ class ValueProcessor():
                 v = v.replace('米', '点') if is_height else v
                 # multiplier coefficient if represents area or distance
                 is_area = re.search(r'平方公里|平方千米', v) is not None
-                is_distance = re.search(r'公里', v) is not None and (not is_area)
                 # ignore these metrics containing ambiguous char 千 or k
                 v = re.sub(r'千米|千瓦|千克|千斤|千卡|kg|km', '', v, flags=re.I)
                 v = re.sub(r'w', '万', re.sub(r'k', '千', v, flags=re.I), flags=re.I)
@@ -166,14 +165,13 @@ class ValueProcessor():
                 if is_number(v): v = float(v)
                 else:
                     try: v = ZH_WORD2NUM(v)
-                    except: 
+                    except:
                         v = parse_mixed_float_and_metric(v)
                         if v is None: return False
-                    
+
                 v = float(Decimal(str(v)) * Decimal('100')) if is_height else \
                         float(Decimal(str(v)) * Decimal('0.01')) if is_percent else \
-                            float(Decimal(str(v)) * Decimal(str('1000000'))) if is_area else \
-                                float(Decimal(str(v)) * Decimal(str('1000'))) if is_distance else float(v)
+                            float(Decimal(str(v)) * Decimal(str('1000000'))) if is_area else float(v)
 
                 num = int(v) if is_int(v) else v
                 if '(' in name: # metric exist in the column name, e.g. 投资额(万亿)
@@ -184,14 +182,14 @@ class ValueProcessor():
                         factor = np.prod(metric)
                         if is_int(num) and num % factor == 0:
                             num = int(num // factor)
-                elif '届' in name and cell_values: # e.g. 第十八届, 第? num/word 届?
-                    templates = [tuple([cv.startswith('第'), re.search(r'\d+', cv) is not None, '届' in cv]) for cv in cell_values]
-                    counter = Counter(templates)
-                    flags = counter.most_common(1)[0][0]
-                    num = str(num) if flags[1] else ZH_NUM2WORD(num, 'low')
-                    num = '第' + num if flags[0] else num
-                    num = num + '届' if flags[2] else num
-                
+                # elif '届' in name and cell_values: # e.g. 第十八届, 第? num/word 届?
+                    # templates = [tuple([cv.startswith('第'), re.search(r'\d+', cv) is not None, '届' in cv]) for cv in cell_values]
+                    # counter = Counter(templates)
+                    # flags = counter.most_common(1)[0][0]
+                    # num = str(num) if flags[1] else ZH_NUM2WORD(num, 'low')
+                    # num = '第' + num if flags[0] else num
+                    # num = num + '届' if flags[2] else num
+
                 parsed_nums.append(str(num))
 
             nonlocal value

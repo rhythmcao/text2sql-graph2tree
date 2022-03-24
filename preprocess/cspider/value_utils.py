@@ -377,7 +377,7 @@ def try_number_to_word(num, question, question_toks, sqlvalue, entry):
 
 
 def add_value_from_reserved(val, sqlvalue):
-    sqlvalue.add_candidate(SelectValueAction.reserved_cspider[val])
+    sqlvalue.add_candidate(SelectValueAction.vocab('cspider')[val])
 
 def add_value_from_char_idx(index_pairs, question_toks, sqlvalue, entry):
     start_id, end_id = index_pairs

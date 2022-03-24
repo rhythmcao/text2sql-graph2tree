@@ -13,9 +13,9 @@ def get_output_processor(dataset, table_path=None, db_dir=None):
         from preprocess.cspider.output_utils import OutputProcessor
     elif dataset == 'cspider_raw':
         from preprocess.cspider_raw.output_utils import OutputProcessor
-    elif dataset == 'wikisql':
-        raise NotImplementedError
     elif dataset == 'nl2sql':
+        from preprocess.nl2sql.output_utils import OutputProcessor
+    elif dataset == 'wikisql':
         raise NotImplementedError
     else:
         raise ValueError('Not recognized dataset name %s' % (dataset))
@@ -27,8 +27,8 @@ def get_output_processor(dataset, table_path=None, db_dir=None):
 def process_dataset_output(processor, dataset, tables, output_path=None, skip_error=True, verbose=False):
     processed_dataset = []
     for idx, entry in enumerate(dataset):
-        if (idx + 1) % 500 == 0:
-            print('*************** Processing outputs of the %d-th sample **************' % (idx + 1))
+        # if (idx + 1) % 500 == 0:
+            # print('*************** Processing outputs of the %d-th sample **************' % (idx + 1))
         try:
             # extract schema subgraph, graph pruning labels, values from (question, sql) pairs, and output ast
             entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)
@@ -37,8 +37,8 @@ def process_dataset_output(processor, dataset, tables, output_path=None, skip_er
             print('Skip instance: [%s]' % ('|'.join(entry['cased_question_toks'])))
             print('Query: %s' % (entry['query']))
             print('SQL: %s' % (json.dumps(entry['sql'], ensure_ascii=False)))
-            # exc_type, exc_value, exc_traceback_obj = sys.exc_info()
-            # traceback.print_tb(exc_traceback_obj)
+            exc_type, exc_value, exc_traceback_obj = sys.exc_info()
+            traceback.print_tb(exc_traceback_obj)
             print(e)
             print('')
             if not skip_error: raise ValueError(f'[ERROR]: while processing output of the {idx}-th sample !')
@@ -64,5 +64,5 @@ if __name__ == '__main__':
     processor = get_output_processor(args.dataset, table_path=tables, db_dir=db_dir)
     dataset_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
     dataset = pickle.load(open(dataset_path, 'rb'))
-    dataset = process_dataset_output(processor, dataset, tables, dataset_path, skip_error=True, verbose=args.verbose)
+    dataset = process_dataset_output(processor, dataset, tables, dataset_path + '.out', skip_error=True, verbose=args.verbose)
     print('Dataset preprocessing costs %.4fs .' % (time.time() - start_time))

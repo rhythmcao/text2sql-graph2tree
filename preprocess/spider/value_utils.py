@@ -408,7 +408,7 @@ class ValueExtractor():
         return values, question_toks
 
 def add_value_from_reserved(val, sqlvalue):
-    sqlvalue.add_candidate(SelectValueAction.reserved_spider[val])
+    sqlvalue.add_candidate(SelectValueAction.vocab('spider')[val])
 
 def add_value_from_token_idx(index_pairs, question_toks, sqlvalue):
     # use ValueCandidate to represent matched value and update toks in question_toks

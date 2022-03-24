@@ -6,7 +6,7 @@ from decimal import Decimal
 from itertools import combinations
 from asdl.transition_system import SelectValueAction
 from preprocess.process_utils import ValueCandidate, State, SQLValue
-from preprocess.process_utils import is_number, is_int, float_equal, quote_normalization
+from preprocess.process_utils import is_number, is_int, float_equal, quote_normalization, search_for_longest_substring
 from preprocess.process_utils import ZH_NUM2WORD, ZH_WORD2NUM, ZH_NUMBER, ZH_UNIT, DIGIT_ALIAS, UNIT_OP, AGG_OP
 
 ABBREV_MAPPING = {
@@ -454,22 +454,6 @@ class ValueExtractor():
         return result
 
 
-def search_for_longest_substring(question, val):
-    # record longest "substring": start and end position
-    # "substring" means chars in the question follow the asc order in val, but not necessarily adjacent in val
-    longest, start, end = (0, 0), 0, 0
-    while end < len(question):
-        if question[end] not in val:
-            if start != end and end - start > longest[1] - longest[0]:
-                longest = (start, end)
-            start = end + 1
-        end += 1
-    if start != end and end - start > longest[1] - longest[0]:
-        longest = (start, end)
-        return longest
-    return longest # if no char in question exists in the val, return (0, 0)
-
-
 def try_percentage_variants(num, question, question_toks, sqlvalue, entry):
     num_100 = float(Decimal(str(num)) * Decimal('100'))
     if is_int(num_100):
@@ -561,7 +545,7 @@ def extract_number_occurrences(num, question, exclude_prefix='', exclude_suffix=
 
 
 def add_value_from_reserved(val, sqlvalue):
-    sqlvalue.add_candidate(SelectValueAction.reserved_dusql[val])
+    sqlvalue.add_candidate(SelectValueAction.vocab('dusql')[val])
 
 
 def add_value_from_char_idx(index_pairs, question_toks, sqlvalue, entry):

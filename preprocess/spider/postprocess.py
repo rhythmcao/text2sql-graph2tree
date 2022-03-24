@@ -113,7 +113,7 @@ class ValueProcessor():
         output = None
 
         if value_id < SelectValueAction.size('spider'): # reserved values such as null, true, false, 0, 1
-            value_str = SelectValueAction.reserved_spider.id2word[value_id]
+            value_str = SelectValueAction.vocab('spider').id2word[value_id]
             if clause == 'limit': # value should be integers larger than 0
                 output = 1
             elif clause == 'having' or col_id == 0: # value should be integers

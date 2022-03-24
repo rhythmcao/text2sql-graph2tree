@@ -339,14 +339,11 @@ def amend_examples_in_dataset(dataset: dict, choice: str = 'train', verbose: boo
     return dataset
 
 def amend_tables(tables_list):
-    tables = []
     for db in tables_list:
-        if db['db_id'] not in tables:
-            tables.append(db)
-            if 'table_names_original' not in db or not db['table_names_original']:
-                db['table_names_original'] = db['table_names']
-            if 'column_names_original' not in db or not db['column_names_original']:
-                db['column_names_original'] = db['column_names']
+        if 'table_names_original' not in db or not db['table_names_original']:
+            db['table_names_original'] = db['table_names']
+        if 'column_names_original' not in db or not db['column_names_original']:
+            db['column_names_original'] = db['column_names']
         if db['db_id'] == '智能手机全球占比':
             db['column_types'][-3] = 'text' # 部署国家
         elif db['db_id'] == '互联网企业':
@@ -393,6 +390,8 @@ def amend_tables(tables_list):
             db['column_types'][14] = 'text' # 导演
         elif db['db_id'] == '中国城市潜力':
             db['column_types'][18] = 'text' # 名称
+        elif db['db_id'] == '地震':
+            db['column_types'][25] = 'time' # 开馆时间
         elif db['db_id'] == '中国宜居城市': # 空气指数, 蓝天数量
             db['column_types'][4] = 'text'
             db['column_types'][5] = 'text'
@@ -400,7 +399,7 @@ def amend_tables(tables_list):
             db['column_types'][10] = 'text'
             db['column_types'][14] = 'text'
             db['column_types'][15] = 'text'
-    return tables
+    return tables_list
 
 if __name__ == '__main__':
 

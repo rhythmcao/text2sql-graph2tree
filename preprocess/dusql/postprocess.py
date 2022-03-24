@@ -123,7 +123,7 @@ class ValueProcessor():
             state: namedtuple of (track, agg_op, cmp_op, unit_op, column_id/TIME_NOW)
         @return: value_str
         """
-        raw_value = SelectValueAction.reserved_dusql.id2word[value_id] if value_id < SelectValueAction.size('dusql') else \
+        raw_value = SelectValueAction.vocab('dusql').id2word[value_id] if value_id < SelectValueAction.size('dusql') else \
             value_candidates[value_id - SelectValueAction.size('dusql')].matched_cased_value
         # chinese chars do not have whitespace, while whitespace is needed between english words
         # when ValueCandidate is constructed in models/encoder/auxiliary.py, whitespaces are inserted in matched_value
@@ -293,7 +293,7 @@ if __name__ == '__main__':
             cur_pairs = []
             for v in values:
                 # state: (track, agg_op, col_id/str, cmp_op)
-                match_value = v.candidate.matched_cased_value if isinstance(v.candidate, ValueCandidate) else SelectValueAction.reserved_dusql.id2word[v.candidate]
+                match_value = v.candidate.matched_cased_value if isinstance(v.candidate, ValueCandidate) else SelectValueAction.vocab('dusql').id2word[v.candidate]
                 cur_pairs.append((v.real_value, v.state, match_value))
             samples.append(cur_pairs)
         return samples

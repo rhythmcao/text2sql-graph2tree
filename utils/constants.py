@@ -79,6 +79,17 @@ DATASETS = {
         'value': False,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
+    'nl2sql': {
+        'grammar': os.path.join('asdl', 'nl2sql', 'nl2sql_grammar.txt'),
+        'relation': RELATIONS[:-1],
+        'data': os.path.join('data', 'nl2sql'),
+        'database': os.path.join('data', 'nl2sql', 'db_content.json'),
+        'database_testsuite': os.path.join('data', 'nl2sql', 'db_content.json'),
+        'db_content': True,
+        'bridge': False,
+        'value': False,
+        'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('real', '数值')]),
+    },
 }
 
 # Index for BIO Labels in value recognition:

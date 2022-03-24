@@ -48,36 +48,21 @@ class SelectTableAction(GenTokenAction):
 
 class SelectValueAction(GenTokenAction):
 
-    reserved_spider = Vocab(iterable=['null', 'false', 'true', '0', '1'], default='1')
-    reserved_dusql = Vocab(iterable=['否', '是', '0', '1'], default='1')
-    reserved_cspider_raw = Vocab(iterable=['value'], default='value')
-    reserved_cspider = Vocab(iterable=['null', 'false', 'true', '0', '1'], default='1')
+    reserved_vocab = {
+        'spider': Vocab(iterable=['null', 'false', 'true', '0', '1'], default='1'),
+        'dusql': Vocab(iterable=['否', '是', '0', '1'], default='1'),
+        'cspider': Vocab(iterable=['null', 'false', 'true', '0', '1'], default='1'),
+        'cspider_raw': Vocab(iterable=['value'], default='value'),
+        'nl2sql': Vocab(iterable=['无', '否', '是', '0', '1'], default='1'),
+    }
 
     @classmethod
     def size(cls, dataset):
-        if dataset == 'spider':
-            return cls.reserved_spider.vocab_size
-        elif dataset == 'dusql':
-            return cls.reserved_dusql.vocab_size
-        elif dataset == 'cspider_raw':
-            return cls.reserved_cspider_raw.vocab_size
-        elif dataset == 'cspider':
-            return cls.reserved_cspider.vocab_size
-        else:
-            raise NotImplementedError
+        return cls.reserved_vocab[dataset].vocab_size
 
     @classmethod
     def vocab(cls, dataset):
-        if dataset == 'spider':
-            return cls.reserved_spider
-        elif dataset == 'dusql':
-            return cls.reserved_dusql
-        elif dataset == 'cspider_raw':
-            return cls.reserved_cspider_raw
-        elif dataset == 'cspider':
-            return cls.reserved_cspider
-        else:
-            raise NotImplementedError
+        return cls.reserved_vocab[dataset]
 
     @property
     def value_id(self):
@@ -166,6 +151,8 @@ class TransitionSystem(object):
             from asdl.cspider_raw.sql_transition_system import SQLTransitionSystem
         elif dataset == 'cspider':
             from asdl.cspider.sql_transition_system import SQLTransitionSystem
+        elif dataset == 'nl2sql':
+            from asdl.nl2sql.sql_transition_system import SQLTransitionSystem
         else:
             raise ValueError('unknown dataset name %s' % dataset)
         return SQLTransitionSystem

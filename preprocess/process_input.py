@@ -13,9 +13,9 @@ def get_input_processor(**kargs):
         from preprocess.cspider.input_utils import InputProcessor
     elif dataset == 'cspider_raw':
         from preprocess.cspider_raw.input_utils import InputProcessor
-    elif dataset == 'wikisql':
-        pass
     elif dataset == 'nl2sql':
+        from preprocess.nl2sql.input_utils import InputProcessor
+    elif dataset == 'wikisql':
         pass
     else:
         raise ValueError('Not recognized dataset name %s' % (dataset))

@@ -121,6 +121,32 @@ def quote_normalization(question):
                     question = question.replace(p, '"')
         return re.sub(r'\s+', ' ', question.strip())
 
+def search_for_longest_substring(question, val, ignore_words=''):
+    # record longest "substring" in question: start and end position
+    # "substring" means chars in the question follow the ASC order in val, but not necessarily adjacent in val
+    start, end, val_ptr, candidates = 0, 0, 0, []
+    while end < len(question):
+        if question[end] not in val[val_ptr:] and question[end] not in ignore_words:
+            if end > start:
+                candidates.append((start, end))
+            start, val_ptr = end + 1, 0
+        elif question[end] in ignore_words: pass # for longest match
+        else: # move the pointer in val
+            val_ptr = val.index(question[end], val_ptr) + 1
+        end += 1
+    if end > start:
+        candidates.append((start, end))
+    if len(candidates) == 0: return (0, 0)
+    # remove prefix and suffix stopwords for longest useful match
+    best_match = [0, (0, 0)]
+    for s, e in candidates:
+        span = question[s:e]
+        e -= len(span) - len(span.rstrip(ignore_words))
+        s += len(span) - len(span.lstrip(ignore_words))
+        if e - s > best_match[0]:
+            best_match = [e - s, (s, e)]
+    return best_match[1]
+
 
 def number_string_normalization(s: str):
     # remove large number separator `,` (e.g., 10,000), suffix `s` (e.g., 1970s) or `-` (e.g., fourth- grade), and quotes

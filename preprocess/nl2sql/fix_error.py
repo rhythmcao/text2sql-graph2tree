@@ -2,6 +2,7 @@
 import os, sys, json, re, shutil
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from utils.constants import DATASETS
+from preprocess.process_utils import float_equal, load_db_contents, extract_db_contents, is_number
 
 train_question_mapping = {
     'qid211': '你好啊，你知道目前有哪些上市地产公司其销售额超过100亿，销售面积也在100万平以上的呀',
@@ -61,6 +62,7 @@ train_question_mapping = {
     'qid2249': '哪个电动汽车公司月涨跌幅大于零，年涨跌幅反而小于零？',
     'qid2503': '房地产成交环比为负值的日成交量是多少或者同比为负值的日成交量是多少',
     'qid2570': '帅哥，股价和市值啊，2016A市盈率大于22.9的股票股价和市值分别是多少啊，说了n遍了',
+    'qid2573': '呃呃上周北京二手房成交量达到多少啊，还有这个月的成交量呢',
     'qid2641': '你好啊，12月29号有哪些晚间综艺收视率超过0.5%，市场份额也大于4%的呀',
     'qid2642': '你帮我看啊就是12月9号那天收视率大于0.5%，而且市场份额也超过4%的都是什么晚间综艺的啊',
     'qid2643': '12月29号市场份额大于4%的，收视率也高于0.5%的都是啥综艺啊',
@@ -162,6 +164,7 @@ train_question_mapping = {
     'qid8089': '市值超100亿或者股本大于18的股票有么，有的话，请详细告诉我',
     'qid8090': '12年EPS大于0.1，并且13年和11年的EPS预计也会大于0.1的证券代码是什么',
     'qid8092': '想要了解一下12年每股盈余超过0.1，13年和11年的每股盈余估值也大于0.1的证券代码',
+    'qid8140': '帮我看一下12年5月份有多少个楼盘',
     'qid8155': '有没有什么城市上周成交面积大于10或者本周成交面积大于10的',
     'qid8237': '你知道这个第二季的客栈或者芒果TV的电视剧，播放数量是多少吗？',
     'qid8247': 'PB大于0.5并且PS也大于0.5的股票总共有多少个？',
@@ -172,6 +175,7 @@ train_question_mapping = {
     'qid8348': '帮我算一下广深和大秦铁路的总净利率',
     'qid8360': '调整后小于1111是多少',
     'qid8465': '我想知道那些用NAV估值在12以下的股票的代码以及属于哪些公司的',
+    'qid8566': '想要问一下啊万达院线和大地院线的2019年的第4周的电影票房的情况',
     'qid8630': '18年和19年的EPS预计都超过0.3的证券代码是什么',
     'qid8645': '收盘的价格高于10元，并且涨幅超过25%的公司',
     'qid8646': '最后的收盘价超过10元，涨跌幅也要超过25%的公司',
@@ -206,6 +210,7 @@ train_question_mapping = {
     'qid10698': '你知道交运行业里有哪些股票在上一周指数大于2000，同时涨跌幅不超过2的吗',
     'qid10767': '对的，你没听错，我要的就是上周涨跌幅小于0，本月也小于0，然后年涨跌幅也小于0的股票名称',
     'qid10914': '有哪些市场分区2013TI收入占比大于10%，2014TI收入占比大于10%，还有2015TI收入占比大于10的？',
+    'qid10939': '你能帮我查一下上海机场的免税经营权是不是到期的了呀，是啥时候的啊',
     'qid11056': '你可以告诉我七号那一天收视率高于0.3%的晚间综艺数量吗',
     'qid11163': '成交套数同比11年多少可使2010年前五个月成交套数不足100000或者2011年前五个月成交套数不足100000',
     'qid11176': '我想知道，申通快递市值大于500亿以及中通快递也大于500亿的时候，具体日期哪一天',
@@ -235,6 +240,7 @@ train_question_mapping = {
     'qid12700': '请问一下2012年6月17日A股房地产股最新股票价格大于十五块而且最新市值超过四百五十亿的证券代码是哪个',
     'qid12784': '有没有LED行业的公司前三季度营业收入超过40而且营业收入同比增长率大于40的，他的证券代码是什么',
     'qid12808': '秦皇岛港动力煤价格小幅上涨本期超过600或者上周超过600的有哪些指标',
+    'qid12838': '你好，你知道目前有几部好莱坞电影是19年12月20日在北美上映，而且还有望在同一个月引进国内的吗',
     'qid12839': '你帮我查一下有望引进我国，并且19年十二月二十号会在北美地区上映的好莱坞电影共有几部',
     'qid12896': '抱歉，我想知道目前一天成交量就在2以上，而且11年和12年平均每日都成交超过2的一共有几个城市？',
     'qid13070': '请问在11年H2房型的成交面积大于5万平的城市当中有没有哪个城市H1房型成交也大于5万平的',
@@ -263,39 +269,63 @@ train_question_mapping = {
     'qid14253': '你知道这周电影中有几部的电影票价格平均都超过三十五块，上映的天数还超过十的吗',
     'qid14254': '你可以帮我查一下这星期电影中上映了有十天以上，电影票的价格还高于三十五块钱的有多少部吗',
     'qid14452': '我想知道有几只股票的收盘价大于十五元每股',
+    'qid14789': '2018年4月份出版的书写的疗愈力量(原书第3版)是谁写的',
     'qid14891': '我想知道这只小白鼠的购买数量',
+    'qid15027': '帮我看看深圳市南山区腾讯科技(深圳)有限公司的公示人数有多少？还有公示金额是多少钱',
+    'qid15102': '麻烦跟我说一下北京市朝阳金盏医院的等级谢谢',
     'qid15395': '沈阳药科大学的药学专业的学习形式是什么？',
     'qid15396': '请问沈阳药科大学的药学专业采用什么样的学习形式来学习？',
     'qid15397': '我想知道沈阳药科大学的药学以什么学习方式来进行？',
+    'qid15585': '你好，你可以帮我查一下负责检测生产日期为17年5月的平面灯的单位名吗',
     'qid15614': '哪种尺寸的小茶几被放在了一楼客厅',
     'qid15778': '你好啊，我想了解的是把脉雅思语法这本书的页数和涉外礼仪知识这本书的页数',
     'qid16033': '哪些书的总字数和撰写字数都超过了200000字',
+    'qid16070': '你知道老师要求购买的初二数学教辅叫什么吗',
     'qid16190': '我想问一下助词“的”它的出现次数大概是多少',
     'qid16205': '哪些材料的需求量超过了100或者单价高于300块',
+    'qid16663': '哪个公司的产品是金装幼儿配方奶粉，适合1岁至3岁幼儿并且一盒有400g',
+    'qid16664': '400g一盒的金装幼儿配方奶粉，适和1岁至3岁的宝宝，能不能告诉我哪个公司生产的',
     'qid16786': '你帮我查一下天津市的三星公司生产的液晶彩色电视机的抽检结果',
     'qid17020': '诶你知道河北的康达注册资金是多少吗',
     'qid17605': '中国改革开放30年大事记（上）和改革开放30年大事记（下）的索书号分别是多少',
     'qid17606': '我想找两本书的馆藏索书号码，中国改革开放30年大事记上和中国改革开放30年大事记下',
     'qid18084': '在2011年由广西桂林师范大学出版社所出版的题名有哪些呀？其作者是谁呢',
+    'qid18229': '你好，我想知道去天津考点天津财经大学应该坐哪些交通工具过去会比较方便',
     'qid18562': '哪些竞赛项目等级为三级且晋升了？',
     'qid18863': '有哪些课程的学时大于30并且授课对象是特招的',
+    'qid19296': '新疆自治区有几个沙漠',
+    'qid19299': '我想知道科艺中心音乐厅在4月4号晚上七点半有什么活动',
     'qid19514': '佛山市南海威亚纺织有限公司的项目数是多少',
     'qid19554': '汕尾市的技工学校有哪些岗是要求得在招聘单位服务满3周年的呀',
     'qid19555': '汕尾技校要求得在招聘单位服务满3周年的是什么岗啊',
+    'qid19658': '你给我查查负责检验生产日期为16年的7月19号的防冻液的机构名',
+    'qid19703': '请问一下啊国际标准书号是978-7-5682-3775-8的书叫什么啊，那个国际标准书号是978-7-5682-3702-4的书呢又叫什么',
     'qid19825': '原债权行是建行或者基准日本金余额为32303267.28元的项目有多少个',
     'qid19826': '有几个项目的原债权行是建设银行或者基准日本金余额为32303267.28元',
     'qid20086': '关于13年3月出版的《寻味:行路天下,吃情不减》这本书的内容，你能给我说个大概吗',
     'qid20354': '你知道论语的索取号是什么吗，还有这本易经，索取号又是多少',
+    'qid20380': '已知任意三角形a、b、c为三条边长，其它参数的计算公式是什么呢',
     'qid20562': '诶你知道什么单位的岗位是要招1人以上的吗，这些单位你知道它们对学历有没有什么要求吗',
     'qid20849': '诶你知道那个主席台一和主席台二共买了几张吗',
     'qid21145': '诶你帮我查一下呗那本93年7月版本的浮士德多少钱来着',
     'qid21931': '我想知道王府井的德得轩店有什么优惠？',
+    'qid22015': '请问2018年7月24号，2018年8月16号和2018年9月18号共检查了多少间网吧呀',
+    'qid22016': '2018年7月24号，2018年8月16号和2018年9月18号这几天被检查了多少家网吧，总共多少家',
+    'qid22017': '帮我查一下2018年7月24号，2018年8月16号，还有2018年9月18号被检查的网吧的数目',
     'qid22159': '帮我查一下10cm栾树的株数',
     'qid22468': '实验者在不知晓实验结果的前提下，通过自己实验、探索、分析、研究得出结论的探究实验有哪些？',
+    'qid23019': '我想问一下音乐学系民族音乐学教师的工作职责是什么',
+    'qid23068': '8月15号，8月16号，还有8月17号有哪些活动你知道吗，还有这些活动是在哪举行的呀',
+    'qid23069': '你帮我查一下在8月15号，8月16号还有8月17号举办的活动有哪些，这些活动分别是在哪进行的',
+    'qid23070': '你好，我想知道8月15日，8月16日和8月17日都有哪些活动，还有这些活动举办的地点是在哪',
+    'qid23558': '我问你啊就是北京医院它等级多高呀',
     'qid23859': '你好啊我想查查两本书的出版社名字，一本是外国哲学还有一本是铃与哨',
     'qid24265': '你好啊，我想问问高中化学和高中生物这两个科目的老师招考的人数情况',
-    'qid24301': '上海好孩子儿有限公司和上海彪马有限公司分别有哪些产品被抽查了',
     'qid24504': '知道检察官学院要招多少名体育教学的老师',
+    'qid25664': '你好，你帮我查一下11年的7月20号那天生产的产品名',
+    'qid25823': '你好，你帮我查查有多少家是被勒令要求场馆重新进行改造的呀',
+    'qid26252': '想了解瑞安市委宣传部门的新闻中心这个新闻采编岗位计划招聘的人数是多少',
+    'qid26316': '我想要查查就是血液科医师岗位的招聘人数和胸外科医师岗位的招聘人数',
     'qid26713': '诶你给我介绍一下哪些公司的什么保险是可以保终身的',
     'qid27244': '请问一下都有哪些砂石开采规模达到了26万吨/年的公司啊',
     'qid28163': '2015年7月华文出版社出版的书是什么',
@@ -307,35 +337,61 @@ train_question_mapping = {
     'qid29249': '你好，你帮我查一下目前上海被抽检到吃的的有几家店',
     'qid29407': '我想知道任意三角形的面积计算公式',
     'qid29468': '所有自助金额为20万的机构中，哪些只有16名社工',
+    'qid29521': '你知道去应聘国际工程设计院的设计师岗位所要求的学历是什么吗',
     'qid29543': '北京市平谷区的第五中学不是要招高中的数学老师吗，那要求什么学历的你知道吗',
     'qid29544': '你好，你帮我查一下北京平谷区第五中学要招啥学历的高中的数学老师来着',
     'qid29575': '请问一下啊插画一班和插画二班分别有多少人',
+    'qid29576': '我想知道的是插画班，就是插画1班、插画2班的班级的容量情况',
     'qid29632': '你好啊我想要知道的是什么出版社出版的《创意大开窍》和《阿尔喀比亚德》这两本书',
     'qid30002': '我想了解一下关于这个单相电能表产品，都有哪些浙江的公司在生产',
     'qid30003': '你知道生产单相电子式的电能表的浙江企业有哪些吗',
     'qid30468': '这些面料有效幅宽为4米的威尔顿地毯是什么公司的产品',
+    'qid30531': '我想问问啊《周易》入门1班和《周易》入门2班的主讲教师是同一个人吗，叫什么名字呢',
+    'qid30532': '请问你一下啊《周易》入门1班、《周易》入门2班的主讲的老师叫什么',
     'qid30589': '就是我想查一本是就是他的编号是2-03的书是什么呢',
+    'qid30690': '请问一下啊成语大词典的作者叫什么名字啊还有汉语成语大词典的作者的名字又是什么',
+    'qid30691': '你好啊我想要知道的是成语大词典的话谁是作者啊还有汉语成语大词典的作者叫什么啊',
+    'qid31027': '签发量/拒签量多少的产品规格为10g/瓶（20%，50ml）产品名称是人血白蛋白',
     'qid31744': '我要怎么去四星级雅都大酒店',
+    'qid31997': '你知道星期一到星期日在浙江少儿频道放的动画片叫什么呢',
     'qid32097': '你好，你帮我查一下北京市有哪些公司的什么产品被抽检了',
+    'qid32098': '我想知道这次抽检的是北京哪些公司的什么饮品呀',
     'qid32284': 'Feb2000就出版的有几本期刊呀',
     'qid32671': '你知道这次被抽检的白砂糖是从上海哪些单位抽取的吗',
     'qid32672': '你好，你帮我查一下接受检验的白砂糖样品分别是抽取上海哪些单位的',
+    'qid32707': '诶你知道8月15号到8月19号的上午9点到下午5点半有啥活动吗',
     'qid32762': '你知道叫现代生物学的实验室计划要买几只2kg的活鸡吗',
+    'qid32989': '我想查一下啊，企业文化的第三版到的页数是多少，职业规划与成功素质训练的第二版页数又是多少',
+    'qid33533': '哪种产品是石家庄美洁卫生用品厂在2017年8月1号生产的',
+    'qid33534': '17年8月1日的时候石家庄美洁用品厂生产了什么产品',
     'qid33956': '终结者第一部和终结者第二部的容量分别是多少',
     'qid34884': '可以帮我查查医学检验岗有说限制要多少岁吗还有影像诊断岗呢有说限制要多少岁吗',
     'qid35170': '雅兰家私工程有限公司进行土地抵押的是哪个行业的',
     'qid35172': '哪个行业被雅兰家私工程有限公司进行土地抵押了',
+    'qid35618': '大学英语自学教程上册和大学英语自学教程下册的作者是谁呀',
+    'qid35619': '你好，大学英语自学教程上册和大学英语自学教程下册是由谁编写你知道吗',
+    'qid35620': '请问一下教材大学英语自学教程上册和大学英语自学教程下册的作者是哪位',
+    'qid36149': '我想问一下高淳区汶溪路的紫雅苑二期的开工日期',
     'qid36212': '积极的情绪是哪个出版社出版的呀，我只知道是周雅写的',
     'qid36635': '请问盐城市第一小学教育集团招聘女音乐老师对学历学位有要求吗',
+    'qid36671': '你好啊我想问问就是国际标准书号是978-7-5560-7498-3的书是啥还有啊国际标准书号是978-7-122-32828-1的书又是啥',
+    'qid36672': '我知道国际的标准书号可以查书名吗，我想查查两本书书名，一本是978-7-5560-7498-3另一本是978-7-122-32828-1',
+    'qid36742': '在市面售卖的糕点都有哪些是检验合格的呢？',
     'qid36920': '你帮我查一下卖方需要提交的资料名',
     'qid37297': '哪个公司会生产这种TDR102Z型的电动自行车',
+    'qid37501': '你帮我查一下这个糖类抗原测定，要是只做一项的话，我要给多少钱啊',
     'qid37668': '帮我统计一下河南的图书馆数量是多少',
     'qid37849': '北京有什么企业吗？',
+    'qid38163': '钻石牌有源音箱是什么公司的商品',
     'qid38959': '你好，你知道静脉抽血这个项目一个人做1次要花费多少吗',
     'qid38960': '你帮我查一下如果我一人做1次静脉抽血的话，那我要给几块钱啊',
     'qid39168': '你好，请帮我查一下白说的书号，就白岩松写的那本',
     'qid39273': '哪些商品的卖价是超过10块或者进购价格高于10块的',
     'qid39427': 'iphone A1586是什么时候放进仓库的',
+    'qid39544': '两全保险中韩悦安康A款是什么公司的产品',
+    'qid40175': '这款光大永明的产品光大永明安鑫福年金保险，风险等级高不高啊',
+    'qid40366': '你帮我查一下那些被抽检产品的江苏的公司叫啥名来着',
+    'qid40505': '河南哪个公司被抽取了一部分的样品然后送去检验了',
     'qid40565': '帮我看一下哪个小学在招教英语的小学教师',
     'qid40568': '哪些粤语歌是王菲唱的',
     'qid41164': '你能帮我查一下这本出版社是金城出版社，名叫忍耐的智慧的书它的出版时间吗',
@@ -397,6 +453,9 @@ dev_question_mapping = {
     'qid1760': '你帮我算一下福州2012年1月和2012年3月住房成交面积的平均数吧',
     'qid2096': '长度超过5000米的路有哪些？',
     'qid2114': '请问一下康奈尔大学在什么国家，还有耶鲁大学？',
+    'qid2139': '我想去应聘初中部的老师，你帮我查查如果我应聘初中美术科目和初中音乐科目的话专业需要满足什么条件',
+    'qid2159': '你好，你帮我查一下长沙货运中心货运服务岗的招聘人数',
+    'qid2160': '我想知道长沙市货运中心货运服务员的招聘数目',
     'qid2197': '香港的电视剧酒店风云一共多少集',
     'qid2198': '你知道那部香港的电视剧酒店风云总共多少集吗',
     'qid2199': '你帮我查一下香港的电视剧酒店风云有多少集',
@@ -407,9 +466,19 @@ dev_question_mapping = {
     'qid2727': '我想知道2016年开工，2017年就建成的项目有多少个',
     'qid2891': '哈克·费恩历险记这部剧是中国国际电视总公司引进的，请问一共有多少集',
     'qid3079': '帮我查一下郑一编著的你就是不懂忍耐这本书的出版单位',
+    'qid3275': '你好啊我是学助产护理的专业请问下适合什么职位的专业招聘要求呢',
     'qid3402': '由交易所付费的付费截止日期',
     'qid3606': '池舒涵写的这本叫纳兰性德的书籍被哪个出版社出版了',
     'qid3698': '请问金属有机国家重点实验室黄正小组招研究助理的专业要求是什么',
+    'qid4293': '2015年10月30号生产了什么型号的智能马桶盖',
+}
+
+test_question_mapping = {
+    'qid297': '你知道三线有哪些城市在11年上半年和下半年一手房成交都超过5万平的？',
+    'qid299': '关于一手房交易中，11年上半年和下半年都达到5万平以上的城市都有哪些？',
+    'qid3804': '青铜器辨伪三百例上集和青铜器辨伪三百例下集作者是谁啊',
+    'qid3805': '你知道青铜器辨伪三百例上集和青铜器辨伪三百例下集的作者吗',
+    'qid3806': '你好啊，我想知道那个青铜器辨伪三百例上集和青铜器辨伪三百例下集是谁编的呀',
 }
 
 def fix_province_and_region(ex):
@@ -429,7 +498,7 @@ def fix_province_and_region(ex):
     elif '机荷东段西段' in question:
         ex['question'] = question.replace('机荷东段西段', '机荷东段和机荷西段')
     elif '一二楼报告厅' in question or '一二层报告厅' in question or '一层和二层的报告厅' in question:
-        pmap = {'一二楼报告厅': '一楼报告厅和二楼报告厅', '一二层报告厅': '一层报告厅和二层报告厅', '一层和二层的报告厅': '一层报告厅和二层的报告厅'}
+        pmap = {'一二楼报告厅': '一楼报告厅和二楼报告厅', '一二层报告厅': '一层报告厅和二层报告厅', '一层和二层的报告厅': '一层报告厅和二层报告厅'}
         ex['question'] = re.sub('(' + '|'.join(sorted(pmap.keys(), key=lambda x: - len(x))) + ')', lambda match: pmap[match.group(0)], question)
     else: return False
     return True
@@ -455,8 +524,6 @@ def fix_train_typos(ex):
         ex['question'] = q.replace('2', '主席台2')
     elif '居延汉简研究上下' in q:
         ex['question'] = q.replace('居延汉简研究上下', '居延汉简研究上、居延汉简研究下')
-    elif '彪马' in q and '彪马有限公司' not in q:
-        ex['question'] = q.replace('彪马', '彪马有限公司')
     elif '一二名' in q or ('一二' in q and '排' in q):
         ex['question'] = q.replace('一二', '第一和第二')
     elif ('20亿' in q and '50' not in q) and ('总市值' in sql and '50' in sql and '20' not in sql):
@@ -509,7 +576,7 @@ def fix_train_typos(ex):
     else: return False
     return True
 
-def amend_examples_in_dataset(dataset: dict, choice: str = 'train', verbose: bool = False):
+def amend_examples_in_dataset(dataset: dict, choice: str = 'train'):
     count = 0
     if choice == 'train':
         for ex in dataset:
@@ -518,7 +585,7 @@ def amend_examples_in_dataset(dataset: dict, choice: str = 'train', verbose: boo
             elif fix_province_and_region(ex): pass
             elif fix_train_typos(ex): pass
             else: count += 1
-    else:
+    elif choice == 'dev':
         for ex in dataset:
             qid, q, sql = ex['question_id'], ex['question'], ex['query']
             if qid in dev_question_mapping:
@@ -536,13 +603,57 @@ def amend_examples_in_dataset(dataset: dict, choice: str = 'train', verbose: boo
             elif '3400万平' in q and '3443' in sql:
                 ex['question'] = q.replace('3400万平', '3443万平')
             else: count += 1
+    else:
+        for ex in dataset:
+            qid, q = ex['question_id'], ex['question']
+            if qid in test_question_mapping:
+                ex['question'] = test_question_mapping[qid]
+            elif '北上广' in ex['question']:
+                ex['question'] = ex['question'].replace('北上广', '北京、上海和深圳')
+            else: count += 1
     print('Fix %d examples in the %s dataset' % (len(dataset) - count, choice))
     return dataset
 
-def amend_tables(tables_list):
+def amend_tables(tables_list, db_file):
+    contents = load_db_contents(db_file)
+    tables = {db['db_id']: db for db in tables_list}
+    db_cells = {db: extract_db_contents(contents, tables[db]) for db in contents}
+    count = 0
+
+    def zero_ahead(cv):
+        return str(cv).startswith('0') and (not str(cv).startswith('0.')) and (not float_equal(cv, 0))
+
+    def check_type(cvs, ct, col_name):
+        if re.search(r'isbn', col_name, flags=re.I): return 'text'
+        cvs = [c for c in cvs if str(c).lower() not in ['none', '-', '--', 'null', 'nan']]
+        if len(cvs) == 0: return ct # do not change
+        all_endswith_zero, all_endswith_point = True, True # maybe special format
+        for cv in cvs:
+            if is_number(cv) and 'e' not in str(cv) and not zero_ahead(cv):
+                if not str(cv).endswith('.0'): all_endswith_zero = False
+                if not str(cv).endswith('.'): all_endswith_point = False
+                continue
+            return 'text'
+        if all_endswith_zero or all_endswith_point: return ct
+        return 'real'
+
     for db in tables_list:
-        pass
+        db_id = db['db_id']
+        cells = db_cells[db_id]
+        column_types = db['column_types']
+        for cid, cvs in enumerate(cells):
+            if cid == 0: continue
+            raw_ct = column_types[cid]
+            new_ct = check_type(cvs, raw_ct, db['column_names'][cid][1])
+            if new_ct != raw_ct:
+                count += 1
+                db['column_types'][cid] = new_ct
+                # print('Column[%s] -> DB[%s]' % (db['column_names'][cid], db['db_id']))
+                # print('Raw type: %s -> Cell type: %s' % (raw_ct, new_ct))
+                # print('Candidate cells: [%s]\n' % ('|'.join(cvs[:5])))
+    print('In total, alter %d column types .' % (count))
     return tables_list
+
 
 if __name__ == '__main__':
 
@@ -550,12 +661,12 @@ if __name__ == '__main__':
     table_path = os.path.join(data_dir, 'tables.json')
     origin_table_path = os.path.join(data_dir, 'tables.original.json')
     update_table_path = origin_table_path if os.path.exists(origin_table_path) else table_path
-    tables = amend_tables(json.load(open(update_table_path, 'r')))
+    tables = amend_tables(json.load(open(update_table_path, 'r')), DATASETS['nl2sql']['database'])
     if not os.path.exists(origin_table_path):
         shutil.copyfile(table_path, origin_table_path)
     json.dump(tables, open(table_path, 'w'), indent=4, ensure_ascii=False)
 
-    for data_split in ['train', 'dev']:
+    for data_split in ['train', 'dev', 'test']:
         dataset_path = os.path.join(data_dir, data_split + '.json')
         origin_dataset_path = os.path.join(data_dir, data_split + '.original.json')
         if os.path.exists(origin_dataset_path):
@@ -563,5 +674,5 @@ if __name__ == '__main__':
         else:
             dataset = json.load(open(dataset_path, 'r'))
             shutil.copyfile(dataset_path, origin_dataset_path)
-        dataset = amend_examples_in_dataset(dataset, data_split, verbose=True)
+        dataset = amend_examples_in_dataset(dataset, data_split)
         json.dump(dataset, open(dataset_path, 'w'), indent=4, ensure_ascii=False)

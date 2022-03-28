@@ -8,7 +8,9 @@ from utils.constants import MAX_RELATIVE_DIST
 from preprocess.graph_utils import GraphProcessor
 from preprocess.process_utils import is_number, quote_normalization, QUOTATION_MARKS, load_db_contents, extract_db_contents
 
-NUMBER_REPLACEMENT = list(zip('０１２３４５６７８９％：．～', '0123456789%:.~'))
+REPLACEMENT = dict(zip('０１２３４５６７８９％：．～幺（）：％‘’\'`—', '0123456789%:.~一():%“”""-'))
+
+NORM = lambda s: re.sub(r'[０１２３４５６７８９％：．～幺（）：％‘’\'`—]', lambda c: REPLACEMENT[c.group(0)], s)
 
 STOPWORDS = set(["的", "是", "有", "多少", "哪些", "我", "什么", "你", "知道", "啊", "给出", "以及", "之", "从", "找", "找到", "哪里", "该", "种", "吧", "请",
 "来自", "一下", "吗", "在", "请问", "或者", "或", "想", "和", "为", "后", "那个", "是什么", "这", "对应", "并", "于", "找出", "她们", "她", "那么", "查查", "就",
@@ -48,8 +50,7 @@ class InputProcessor():
         """ Tokenize, lemmatize, lowercase table and column names for each database """
         table_toks = [['数据库']] # only one table, use a special name
         # normalize brackets
-        mappings = dict(zip('（）：％‘’\'`', '():%“”""'))
-        column_toks = [self.nlp(re.sub(r'[（）：％‘’\'`]', lambda obj: mappings[obj.group(0)], col)) for _, col in db['column_names']]
+        column_toks = [self.nlp(NORM(col.lower())) for _, col in db['column_names']]
         column_toks = [re.sub(r'\s+', ' ', ' '.join(toks)).split(' ') for toks in column_toks]
         db['table_toks'], db['column_toks'] = table_toks, column_toks
 
@@ -87,19 +88,50 @@ class InputProcessor():
         question = entry['question']
         # quote and numbers normalization
         question = quote_normalization(question)
-        for raw, new in NUMBER_REPLACEMENT:
-            question = question.replace(raw, new)
-        question = re.sub(r'那个', '', question).replace('一平', '每平') # influence value recognition
+        question = NORM(question)
+        question = re.sub(r'(那个|那儿)', '', question).replace('一平', '每平') # influence value recognition
         entry['question'] = re.sub(r'\s+', ' ', question).strip(' \t\n!&,.:;=?@^_`~，。？！；、…')
         return entry
 
     def preprocess_question(self, entry: dict, verbose: bool = False):
         """ Tokenize, lemmatize, lowercase question"""
         # LAC tokenize
-        question = self.normalize_question(entry)['question'].replace('丰和支行', ' 丰和支行 ')
+        question = self.normalize_question(entry)['question'].replace('丰和支行', ' 丰和支行 ').replace('上海联合', ' 上海联合 ')
         cased_toks = re.sub(r'\s+', ' ', ' '.join(self.nlp(question))).split(' ')
 
-        # tokenization errors in train/dev set which will influence the value extractor
+        # some tokenizeation error may affect value recognition
+        if '威海市文登分局法医' in cased_toks:
+            idx = cased_toks.index('威海市文登分局法医')
+            cased_toks[idx:idx+1] = ['威海市文登分局', '法医']
+        elif '川南幼专语言' in cased_toks:
+            idx = cased_toks.index('川南幼专语言')
+            cased_toks[idx:idx+1] = ['川南幼专', '语言']
+        elif '川南幼专现代汉语' in cased_toks:
+            idx = cased_toks.index('川南幼专现代汉语')
+            cased_toks[idx:idx+1] = ['川南幼专', '现代汉语']
+        elif '南团岛' in cased_toks:
+            idx = cased_toks.index('南团岛')
+            cased_toks[idx-1:idx+1] = ['市南', '团岛']
+        elif '黄浦区华融证券股份有限公司' in cased_toks:
+            idx = cased_toks.index('黄浦区华融证券股份有限公司')
+            cased_toks[idx:idx+1] = ['黄浦区', '华融证券股份有限公司']
+        elif '人民北路鑫威尼斯西' in cased_toks:
+            idx = cased_toks.index('人民北路鑫威尼斯西')
+            cased_toks[idx:idx+1] = ['人民北路', '鑫威尼斯西']
+        elif '鲁迅美术学院视觉传达设计学院' in cased_toks:
+            idx = cased_toks.index('鲁迅美术学院视觉传达设计学院')
+            cased_toks[idx:idx+1] = ['鲁迅美术学院', '视觉传达设计学院']
+        elif '宁阳县伊发机箱' in cased_toks:
+            idx = cased_toks.index('宁阳县伊发机箱')
+            cased_toks[idx:idx+2] = ['宁阳县', '伊发机箱制造厂']
+        elif '广州东海堂' in cased_toks:
+            idx = cased_toks.index('广州东海堂')
+            cased_toks[idx:idx+2] = ['广州', '东海堂']
+        else:
+            for idx, tok in enumerate(cased_toks):
+                match = re.search(r'^(小学|初中|高中|初一|初二|初三|高一|高二|高三)(数学|语文|英语|美术|音乐|体育|物理|化学|地理|生物|历史|政治)$', tok)
+                if match: cased_toks[idx] = match.group(1) + ' ' + match.group(2)
+            cased_toks = ' '.join(cased_toks).split(' ')
 
         toks = [w.lower() for w in cased_toks]
         entry['cased_question_toks'] = cased_toks
@@ -130,10 +162,9 @@ class InputProcessor():
 
     def schema_linking(self, entry: dict, db: dict, verbose: bool = False):
         """ Perform schema linking: both question and database need to be preprocessed """
-        question_toks = entry['uncased_question_toks']
-        column_toks = db['column_toks']
-        column_names = [''.join(toks) for toks in column_toks]
-        q_num, question, dtype = len(question_toks), ''.join(question_toks), '<U100'
+        question_toks, column_toks = entry['uncased_question_toks'], db['column_toks']
+        question, column_names = len(question_toks), [''.join(toks) for toks in column_toks]
+        q_num, dtype = ''.join(question_toks), '<U100'
 
         def question_schema_matching_method(schema_toks, schema_names, category):
             assert category in ['table', 'column']
@@ -141,12 +172,12 @@ class InputProcessor():
             q_s_mat = np.array([[f'question-{category}-nomatch'] * s_num for _ in range(q_num)], dtype=dtype)
             s_q_mat = np.array([[f'{category}-question-nomatch'] * q_num for _ in range(s_num)], dtype=dtype)
             max_len = max([len(toks) for toks in schema_toks])
-            index_pairs = sorted(filter(lambda x: 0 < x[1] - x[0] <= max_len, combinations(range(q_num + 1), 2)), key=lambda x: x[1] - x[0])
+            index_pairs = sorted(filter(lambda x: 0 < x[1] - x[0] <= max_len + 1, combinations(range(q_num + 1), 2)), key=lambda x: x[1] - x[0])
             for sid, name in enumerate(schema_names):
                 if category == 'column' and sid == 0: continue
                 current_len = len(schema_toks[sid])
                 for start, end in index_pairs:
-                    if end - start > current_len: break
+                    if end - start > current_len + 1: break
                     span = ''.join(question_toks[start:end])
                     if span in self.stopwords: continue
                     if (end - start == 1 and span in schema_toks[sid]) or (end - start > 1 and span in name):
@@ -156,7 +187,7 @@ class InputProcessor():
                         if verbose:
                             matched_pairs['partial'].append(str((schema_names[sid], sid, span, start, end)))
                 # exact match, considering tokenization errors
-                idx, name = 0, re.sub(r'\(.*?\)', '', name).strip() # remove metrics in brackets
+                idx, name = 0, re.sub(r'\(.*?\)', '', name).strip() # remove context in brackets
                 if len(name) == 0: continue
                 while idx <= len(question) - 1:
                     if name in question[idx:]:
@@ -185,14 +216,13 @@ class InputProcessor():
                 match_obj = re.search(r'^[^\d\.]*([\d\.]+)[^\d\.]*$', word)
                 if match_obj:
                     span = match_obj.group(1)
-                    if is_number(span):
-                        return str(float(span))
+                    if is_number(span): return str(float(span))
                 return word
 
             num_words = [extract_number(word) for word in question_toks]
             for cid, col_name in enumerate(column_names):
                 if cid == 0: continue
-                cells = [c.lower() for c in db['cells'][cid]] # list of cell values, ['2014', '2015']
+                cells = [re.sub(r'\s+', ' ', NORM(c.lower())) for c in db['cells'][cid]] # list of cell values, ['2014', '2015']
                 num_cells = [extract_number(c) for c in cells]
                 for qid, (word, num_word) in enumerate(zip(question_toks, num_words)):
                     if 'nomatch' in q_col_mat[qid, cid] and word not in self.stopwords:
@@ -205,7 +235,7 @@ class InputProcessor():
                                 break
             self.column_vmatch += np.sum(q_col_mat == 'question-column-valuematch')
 
-        # no bridge
+        # TODO: use bridge with ROUGE-L
         entry['cells'] = [[] for _ in range(len(db['column_names']))]
 
         # two symmetric schema linking matrix: q_num x (t_num + c_num), (t_num + c_num) x q_num

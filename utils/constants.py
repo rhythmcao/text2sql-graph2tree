@@ -86,8 +86,8 @@ DATASETS = {
         'database': os.path.join('data', 'nl2sql', 'db_content.json'),
         'database_testsuite': os.path.join('data', 'nl2sql', 'db_content.json'),
         'db_content': True,
-        'bridge': False,
-        'value': False,
+        'bridge': True,
+        'value': True,
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('real', '数值')]),
     },
 }

@@ -56,7 +56,7 @@ DATASETS = {
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('time', '时间'), ('number', '数值'), ('binary', '真假值'), ('others', '其它类型')]),
     },
     'cspider': {
-        'grammar': os.path.join('asdl', 'cspider', 'cspider_grammar.txt'),
+        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider'),
         'database': os.path.join('data', 'cspider', 'db_content.json'),
@@ -64,11 +64,11 @@ DATASETS = {
         'cache_folder': './pretrained_models',
         'db_content': True,
         'bridge': False,
-        'value': True,
+        'value': False, #True,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
     'cspider_raw': {
-        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar.txt'),
+        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider_raw'),
         'database': os.path.join('data', 'cspider_raw', 'database'),

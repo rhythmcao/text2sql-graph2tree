@@ -148,9 +148,11 @@ class TransitionSystem(object):
         elif dataset == 'dusql':
             from asdl.dusql.sql_transition_system import SQLTransitionSystem
         elif dataset == 'cspider_raw':
-            from asdl.cspider_raw.sql_transition_system import SQLTransitionSystem
+            # from asdl.cspider_raw.sql_transition_system import SQLTransitionSystem
+            from asdl.cspider_raw.sql_transition_system_simple import SQLTransitionSystem
         elif dataset == 'cspider':
-            from asdl.cspider.sql_transition_system import SQLTransitionSystem
+            # from asdl.cspider.sql_transition_system import SQLTransitionSystem
+            from asdl.cspider.sql_transition_system_simple import SQLTransitionSystem
         elif dataset == 'nl2sql':
             from asdl.nl2sql.sql_transition_system import SQLTransitionSystem
         else:

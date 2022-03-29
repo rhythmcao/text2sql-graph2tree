@@ -64,5 +64,5 @@ if __name__ == '__main__':
     processor = get_output_processor(args.dataset, table_path=tables, db_dir=db_dir)
     dataset_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
     dataset = pickle.load(open(dataset_path, 'rb'))
-    dataset = process_dataset_output(processor, dataset, tables, dataset_path + '.out', skip_error=True, verbose=args.verbose)
+    dataset = process_dataset_output(processor, dataset, tables, dataset_path, skip_error=True, verbose=args.verbose)
     print('Dataset preprocessing costs %.4fs .' % (time.time() - start_time))

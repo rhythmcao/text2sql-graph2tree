@@ -352,8 +352,8 @@ if __name__ == '__main__':
     db_dir = DATASETS['nl2sql']['database']
     processor = ValueProcessor(table_path=table_path, db_dir=db_dir)
 
-    # dataset = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb'))
-    dataset = pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
+    dataset = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb'))
+    # dataset = pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
     test_samples = [ex['values'] for ex in dataset]
 
     instance_correct, real_count, real_correct, text_count, text_correct = 0, 0, 0, 0, 0
@@ -368,7 +368,7 @@ if __name__ == '__main__':
             if _equal(pred_value, sqlvalue.real_value):
                 if col_type == 'real': real_correct += 1
                 else: text_correct += 1
-            else:#if col_type == 'text':
+            else:
                 flag, col_name, candidate = False, db['column_names'][col_id][1], sqlvalue.candidate
                 matched_value = candidate.matched_cased_value if isinstance(candidate, ValueCandidate) else SelectValueAction.vocab('nl2sql').id2word[candidate]
                 print('Column %s[%s]: Gold/Match/Pred value: %s/%s/%s' % (col_name, col_type, sqlvalue.real_value, matched_value, pred_value))

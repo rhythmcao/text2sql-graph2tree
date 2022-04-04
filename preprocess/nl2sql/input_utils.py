@@ -324,16 +324,12 @@ if __name__ == '__main__':
     tables = pickle.load(open(os.path.join(data_dir, 'tables.bin'), 'rb'))
     train, dev = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb')), pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
     real_bridge, text_bridge, all_bridge, text_tp, real_tp, text_count, real_count = 0, 0, 0, 0, 0, 0, 0
-    input_lens, dataset = [], train
-    data_index = np.arange(len(dataset))
-    # np.random.shuffle(data_index)[:1000]
+    input_lens, dataset = [], dev
     start_time = time.time()
-    for jdx, ex_id in enumerate(data_index):
+    for jdx, ex in enumerate(dataset):
         if (jdx + 1) % 1000 == 0:
             print('Processing %d-th example ...' % (jdx + 1))
-        ex = train[ex_id]
-        db_id = ex['db_id']
-        db = tables[db_id]
+        db = tables[ex['db_id']]
         question_toks, col_types = ex['uncased_question_toks'], db['column_types']
         cells = processor.bridge_content(question_toks, db)
         processed_cells = [['='] + sum([processor.nlp(c) + ['，'] for c in candidates], [])[:-1] if candidates else [] for candidates in cells]
@@ -368,11 +364,17 @@ if __name__ == '__main__':
     print('In total, true/all real SQL value count: %s/%s' % (real_tp, real_count))
     print('In total, true/all text SQL value count: %s/%s' % (text_tp, text_count))
     print('In total, bridge value count real/text/all %s/%s/%s' % (real_bridge, text_bridge, all_bridge))
-    print('MAX/MIN/AVG input len %s/%s/%.2f' % (max(input_lens), min(input_lens), sum(input_lens) / float(len(data_index))))
+    print('MAX/MIN/AVG input len with PLM is %s/%s/%.2f' % (max(input_lens), min(input_lens), sum(input_lens) / float(len(dataset))))
     print('Cost %.2fs .' % (time.time() - start_time))
 
-    # In total, true/all real SQL value count: 3593/19982
-    # In total, true/all text SQL value count: 45356/47666
-    # In total, bridge value count real/text/all 15554/151592/167146
-    # MAX/MIN/AVG input len 241/20/62.84
-    # Cost 711.29s .
+    # train:
+    # In total, true/all real SQL value count: 3591/19867
+    # In total, true/all text SQL value count: 45253/47556
+    # In total, bridge value count real/text/all 15502/151289/166791
+    # MAX/MIN/AVG input len 241/20/62.86
+
+    # dev:
+    # In total, true/all real SQL value count: 420/2576
+    # In total, true/all text SQL value count: 4496/4723
+    # In total, bridge value count real/text/all 1802/15040/16842
+    # MAX/MIN/AVG input len with PLM is 209/23/62.69

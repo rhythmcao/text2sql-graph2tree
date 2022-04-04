@@ -11,7 +11,7 @@ python3 -u preprocess/process_output.py --dataset 'nl2sql' --data_split train --
 
 echo "Start to preprocess the original dev dataset ..."
 # python3 -u preprocess/process_input.py --dataset 'nl2sql' --data_split dev --encode_method $encode_method #--verbose > dev.log
-python3 -u preprocess/process_output.py --dataset 'nl2sql' --data_split dev --encode_method $encode_method #--verbose >> dev.log
+# python3 -u preprocess/process_output.py --dataset 'nl2sql' --data_split dev --encode_method $encode_method #--verbose >> dev.log
 
 # echo "Start to preprocess the original test dataset ..."
 # python3 -u preprocess/process_input.py --dataset 'nl2sql' --data_split 'test' --encode_method $encode_method #--verbose > test.log

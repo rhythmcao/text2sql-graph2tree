@@ -40,10 +40,12 @@ class UnParser():
         select_field = sql_ast[self.grammar.get_field_by_text('select select')][0]
         select_str = 'SELECT ' + self.unparse_select(select_field.value, db)
         where_field = sql_ast[self.grammar.get_field_by_text('condition condition')][0]
-        where_str = ' WHERE' + self.unparse_where(where_field.value, db, *args, **kargs)
+        where_str = ' WHERE ' + self.unparse_where(where_field.value, db, *args, **kargs)
         return select_str + where_str
     
     def retrieve_col_name(self, col_id, db):
+        if self.sketch:
+            return db['column_names_original'][1][1]
         if col_id == 0:
             return '*'
         return db['column_names_original'][col_id][1]
@@ -74,7 +76,7 @@ class UnParser():
             conj = ' and ' if ctr_name.startswith('and') else ' or '
             return conj.join(cond_list)
     
-    def unparse_col_unit(self, cond_ast: AbstractSyntaxTree, db: dict, value_candidates: list, entry: dict, *args, **kargs):
+    def unparse_cond_unit(self, cond_ast: AbstractSyntaxTree, db: dict, value_candidates: list, entry: dict, *args, **kargs):
         col_id = int(cond_ast[self.grammar.get_field_by_text('col_id col_id')][0].value)
         col_name = self.retrieve_col_name(col_id, db)
         CMP_OP_MAPPING = {'GreaterThan': ' > ', 'LessThan': ' < ', 'Equal': ' = ', 'NotEqual': ' != '}
@@ -84,8 +86,8 @@ class UnParser():
             value_str = "\"1\""
         else:
             val_id = int(cond_ast[self.grammar.get_field_by_text('val_id val_id')][0].value)
-            candidate = val_id if val_id < SelectValueAction.size('nl2sql') else value_candidates[val_id]
-            state = State('', 'none', cmp_name.strip(), 'none', col_id)
+            candidate = val_id if val_id < SelectValueAction.size('nl2sql') else value_candidates[val_id - SelectValueAction.size('nl2sql')]
+            state = State('', 'none', cmp_op.strip(), 'none', col_id)
             sqlvalue = SQLValue('', state)
             sqlvalue.add_candidate(candidate)
             value_str = self.value_processor.postprocess_value(sqlvalue, db, entry)

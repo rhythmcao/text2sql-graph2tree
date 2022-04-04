@@ -23,8 +23,8 @@ select = SelectColumn[col_unit col_unit:1,3](col_unit col_unit)
 
 col_unit = UnaryColumnUnit(agg_op agg_op, col_id col_id)
 
-condition = AndCondition[cond_unit cond_unit:2,4](condition condition)
-    | OrCondition[cond_unit cond_unit:2,4](condition condition)
+condition = AndCondition[condition condition:2,4](condition condition)
+    | OrCondition[condition condition:2,4](condition condition)
     | CmpCondition(cmp_op cmp_op, col_id col_id, val_id val_id)
 
 agg_op = None | Avg | Max | Min | Count | Sum

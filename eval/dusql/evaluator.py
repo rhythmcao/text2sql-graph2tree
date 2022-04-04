@@ -26,7 +26,7 @@ class DuSQLEvaluator(Evaluator):
     def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db_id, etype):
         """ @return: score(float): 0 or 1, etype score
         """
-        schema, kmap = self.schema[db_id], self.kmaps[db_id]
+        schema, kmap = self.schemas[db_id], self.kmaps[db_id]
         try:
             pred_sql = pred_sql.replace('==', '=')
             pred_sql = get_sql(schema, pred_sql, single_equal=True)
@@ -38,7 +38,7 @@ class DuSQLEvaluator(Evaluator):
         gold_sql = get_sql(schema, gold_sql, single_equal=True)
         g_valid_col_units = build_valid_col_units(gold_sql['from']['table_units'], schema)
         gold_sql = rebuild_sql_col(g_valid_col_units, gold_sql, kmap)
-        score = self.engine.eval_exact_match(pred_sql, gold_sql, value_match=(etype == 'match'))
+        score = self.engine.eval_exact_match(pred_sql, gold_sql, value_match=(etype != 'match'))
         return score
 
 

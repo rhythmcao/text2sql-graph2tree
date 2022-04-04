@@ -38,7 +38,7 @@ class Example():
             table_path=None, tables=None, db_dir=None, ts_order_path=None):
         cls.dataset = dataset
         cls.plm, cls.encode_method = plm, encode_method
-        cls.predict_value = DATASETS[cls.dataset]['value']
+        cls.predict_value = DATASETS[cls.dataset]['predict_value']
         cls.db_dir = db_dir if db_dir is not None else DATASETS[cls.dataset]['database']
         cls.data_dir = DATASETS[cls.dataset]['data']
         table_path = table_path if table_path is not None else os.path.join(cls.data_dir, 'tables.json')

@@ -51,8 +51,8 @@ TLDR = {
     '双语教学培训项目': ['双语教学'], '文化发展专项资金': ['文化发展'], '农业管理培训项目': ['农业管理培训', '农业管理'], '15枚/盒(748g/盒)': ['一盒总的有748g，也就是每盒有15个', '一盒是15个，即每盒总重748g', '每盒有748g，也可以说每盒有15个'], '中国平安人寿保险股份有限公司': ['平安人寿保险公司', '平安人寿'],
 }
 
-EN_NE = ['intel', 'samsung', 'youku', 'aframax', 'suezmax', 'vlcc', 'singapore', 'sd卡', 'cnfia', 'supor', 'duke university press', 'au9999', 'au999', 'seg', 'ge', 'lawson', 'citvc']
-ZH_NE = ['英特尔', '三星', '优酷', '阿芙拉型', '苏伊士型', '超大型', '新加坡', '内存卡', '中国食品工业协会', '苏泊尔', '杜克大学出版社', '万足金', '千足金', '国际勘探地球物理学家学会', '美国通用电气', '罗森', '中国国际电视总公司']
+EN_NE = ['intel', 'samsung', 'youku', 'aframax', 'suezmax', 'vlcc', 'singapore', 'sd卡', 'cnfia', 'supor', 'duke university press', 'au9999', 'au999', 'seg', 'ge', 'lawson', 'citvc', 'kg', 'mg', 'ml', 'l', 'g']
+ZH_NE = ['英特尔', '三星', '优酷', '阿芙拉型', '苏伊士型', '超大型', '新加坡', '内存卡', '中国食品工业协会', '苏泊尔', '杜克大学出版社', '万足金', '千足金', '国际勘探地球物理学家学会', '美国通用电气', '罗森', '中国国际电视总公司', '千克', '毫克', '毫升', '升', '克']
 EN2ZH_NE = dict(zip(EN_NE, ZH_NE))
 ZH2EN_NE = dict(zip(ZH_NE, EN_NE))
 
@@ -70,16 +70,11 @@ class ValueExtractor():
         """
         result = { 'values': [], 'entry': entry, 'question_toks': copy.deepcopy(entry['uncased_question_toks']) , 'db': db}
         result = self.extract_values_from_sql(entry['sql'], result)
-        # check_ids = ['qid40445', 'qid40446', 'qid40447']
-        # if entry['question_id'] in check_ids:
-        #     print(entry['question'])
-        #     print(entry['query'])
-        #     print(result['values'], '\n')
-        # entry = self.assign_values(entry, result['values'])
-        # if verbose and len(entry['values']) > 0:
-            # print('Question:', ' '.join(entry['uncased_question_toks']))
-            # print('SQL:', entry['query'])
-            # print('Values:', ' ; '.join([repr(val) for val in entry['values']]), '\n')
+        entry = self.assign_values(entry, result['values'])
+        if verbose and len(entry['values']) > 0:
+            print('Question:', ' '.join(entry['uncased_question_toks']))
+            print('SQL:', entry['query'])
+            print('Values:', ' ; '.join([repr(val) for val in entry['values']]), '\n')
         return entry
 
     def assign_values(self, entry, values):
@@ -198,6 +193,7 @@ class ValueExtractor():
                     return True
             return False
 
+        if is_ranking(num): return result
         start_ids = extract_number_occurrences(num, question, exclude_prefix='~', exclude_suffix='年')
         if len(start_ids) > 0:
             start_id = start_ids[0] # directly use the first one
@@ -208,7 +204,6 @@ class ValueExtractor():
                 add_value_from_reserved('0', sqlvalue)
         elif parse_year(num): pass
         elif self.use_extracted_values(sqlvalue, values): pass
-        elif is_ranking(num): pass
         elif is_production_date(num): pass
         elif is_num_variants(num): pass
         elif ignore_metric(num): pass
@@ -462,7 +457,7 @@ class ValueExtractor():
                     start_id = question.index(val_)
                     add_value_from_char_idx((start_id, start_id + len(val_)), question_toks, sqlvalue, entry)
                     return True
-            match = re.search('\((.+?)\)', val)
+            match = re.search(r'\((.+?)\)', val)
             if match and val.count('(') == 1:
                 val_ = match.group(1) + re.sub(r'\(.+?\)', '', val)
                 if val_ in question:

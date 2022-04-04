@@ -73,14 +73,15 @@ def load_db_contents(db_path):
     contents = {db['db_id']: db['tables'] for db in contents}
     return contents
 
-def extract_db_contents(contents, db):
+def extract_db_contents(contents, db, strip=True):
+    """ Some values in NL2SQL db_content should not strip() """
     db_cells = [[]]
     cells = contents[db['db_id']]
     for tab_id, table_name in enumerate(db['table_names']):
         all_column_cells = list(zip(*cells[table_name]['cell']))
         if all_column_cells:
             for column_cells in all_column_cells:
-                column_cells = [str(cv).strip() for cv in set(column_cells) if str(cv).strip()]
+                column_cells = [str(cv).strip() if strip else str(cv) for cv in set(column_cells) if str(cv).strip()]
                 db_cells.append(list(set(column_cells)))
         else:
             column_nums = len([c for c in db['column_names'] if c[0] == tab_id])

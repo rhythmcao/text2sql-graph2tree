@@ -9,7 +9,7 @@ class OutputProcessor():
     def __init__(self, table_path=None, db_dir=None, **kargs) -> None:
         super(OutputProcessor, self).__init__()
         grammar = ASDLGrammar.from_filepath(DATASETS['nl2sql']['grammar'])
-        # self.trans = TransitionSystem.get_class_by_dataset('nl2sql')(grammar, table_path, db_dir)
+        self.trans = TransitionSystem.get_class_by_dataset('nl2sql')(grammar, table_path, db_dir)
         self.value_extractor = ValueExtractor()
 
     def pipeline(self, entry: dict, db: dict, verbose: bool = False):
@@ -18,10 +18,10 @@ class OutputProcessor():
         # extract bio sequence and all SQLValue's first, entry key: 'values', 'candidates'
         entry = self.value_extractor.extract_values(entry, db, verbose=verbose)
         # add auxiliary labels for value recognition and graph pruning
-        # entry = self.auxiliary_labels(entry, db)
+        entry = self.auxiliary_labels(entry, db)
         # generate golden ast
-        # ast = self.trans.surface_code_to_ast(entry['sql'], entry['values'])
-        # entry['ast'] = ast
+        ast = self.trans.surface_code_to_ast(entry['sql'], entry['values'])
+        entry['ast'] = ast
         return entry
 
     def auxiliary_labels(self, entry: dict, db: dict):

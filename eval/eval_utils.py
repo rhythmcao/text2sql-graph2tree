@@ -36,6 +36,16 @@ g_empty_sql = {"select": [], "from": {"conds": [], "table_units": []},
                "where": [], "groupBy": [], "having": [], "orderBy": [], "limit": None,
                "except": None, "intersect": None, "union": None}
 
+class Engine():
+
+    def eval_hardness(self, sql: dict):
+        # 'easy', 'medium', 'hard', 'extra'
+        hard = len(sql['sel']) + len(sql['conds'])
+        if hard <= 2: return 'easy'
+        elif hard == 3: return 'medium'
+        elif hard == 4: return 'hard'
+        else: return 'extra'
+
 
 def is_float(value):
     """is float"""
@@ -288,10 +298,29 @@ def query2sql(query, cols, single_equal=False, with_value=True):
     sql_sels = [(sql_agg_dict[i[0]], cols.index(_format_col(i[1]))) for i in sels]
     return sql, sql_sels
 
+def compare_set(gold, pred):
+    _pred = copy.deepcopy(pred)
+    _gold = copy.deepcopy(gold)
+    
+    pred_total = len(_pred)
+    gold_total = len(_gold)
+    cnt = 0
+
+    for unit in _pred:
+        if unit in _gold:
+            cnt += 1
+            _gold.remove(unit)
+    return cnt, pred_total, gold_total
+
 def evaluate_NL2SQL(table, gold, predict, single_equal=False, verbose=True):
     scores = {}
-    scores_novalue = {}
-
+    engine = Engine()
+    level = ['easy', 'medium', 'hard', 'extra', 'all']
+    partial_types = ['select', 'connection', 'condition', 'condition(no value)']
+    for l in level:
+        scores[l] = {'count': 0, 'exact': 0, 'exact(no value)': 0, 'partial': {}}
+        for pt in partial_types:
+            scores[l]['partial'][pt] = {'acc': 0}
     # load db
     with open(table) as ifs:
         table_list = json.load(ifs)
@@ -307,26 +336,7 @@ def evaluate_NL2SQL(table, gold, predict, single_equal=False, verbose=True):
         pred_list = [l.strip().split('\t') for l in f2 if len(l.strip()) > 0]
         pred_dict = dict([(x[0], x[1]) for x in pred_list if len(x) >= 2])
 
-    right = total = 0
-    cnt_sel = 0
-    cnt_cond = cnt_conn = 0
-
-    def compare_set(gold, pred):
-            _pred = copy.deepcopy(pred)
-            _gold = copy.deepcopy(gold)
-            
-            pred_total = len(_pred)
-            gold_total = len(_gold)
-            cnt = 0
-
-            for unit in _pred:
-                if unit in _gold:
-                    cnt += 1
-                    _gold.remove(unit)
-            return cnt, pred_total, gold_total
-
     for qid, item in gold_dict.items():
-        total += 1
         if qid not in pred_dict:
             continue
         sql_gold, db_id = ''.join(item[0:-1]), item[-1]
@@ -339,39 +349,90 @@ def evaluate_NL2SQL(table, gold, predict, single_equal=False, verbose=True):
         try:
             sql_gold = sql_gold.replace('==', '=')
             sql_pred = sql_pred.replace('==', '=')
+            
             components_gold, sels_gold = query2sql(sql_gold, cols, single_equal=single_equal)
+            components_gold_wov, _ = query2sql(sql_gold, cols, single_equal=single_equal, with_value=False)
+            hardness = engine.eval_hardness(components_gold)
+            scores['all']['count'] += 1
+            scores[hardness]['count'] += 1
+            
             components_pred, sels_pred = query2sql(sql_pred, cols, single_equal=single_equal)
-
+            components_pred_wov, _ = query2sql(sql_pred, cols, single_equal=single_equal, with_value=False)
             cnt, pred_total, gold_total = compare_set(sels_gold, sels_pred)
             score_sels, _, _ = get_scores(cnt, pred_total, gold_total)
             cnt, pred_total, gold_total = compare_set(components_gold["conds"], components_pred["conds"])
             score_conds, _, _ = get_scores(cnt, pred_total, gold_total)
             score_conn = components_gold["cond_conn_op"] == components_pred["cond_conn_op"]
+            cnt, pred_total, gold_total = compare_set(components_gold_wov["conds"], components_pred_wov["conds"])
+            score_conds_wov, _, _ = get_scores(cnt, pred_total, gold_total)
 
             if score_sels:
-                cnt_sel += 1
+                scores[hardness]['partial']['select']['acc'] += 1
+                scores['all']['partial']['select']['acc'] += 1
             if score_conds:
-                cnt_cond += 1
+                scores[hardness]['partial']['condition']['acc'] += 1
+                scores['all']['partial']['condition']['acc'] += 1
+            if score_conds_wov:
+                scores[hardness]['partial']['condition(no value)']['acc'] += 1
+                scores['all']['partial']['condition(no value)']['acc'] += 1
             if score_conn:
-                cnt_conn += 1
+                scores[hardness]['partial']['connection']['acc'] += 1
+                scores['all']['partial']['connection']['acc'] += 1
+            if score_sels and score_conds_wov and score_conn:
+                scores[hardness]['exact(no value)'] += 1
+                scores['all']['exact(no value)'] += 1
             if score_sels and score_conds and score_conn:
-                right += 1
+                scores[hardness]['exact'] += 1
+                scores['all']['exact'] += 1
             elif verbose:
                 print("error instance %s:\npred: %s\ngold: %s\n" % (qid, sql_pred, sql_gold))
         except Exception as e:
             ##traceback.print_exc()
             if verbose:
-                print('parse sql error, error sql:')
-                print(sql_gold + '|||' + sql_pred, '\n')
+                print('question id: %s' % (qid))
+                print('gold sql:', sql_gold)
+                print('pred sql:', sql_pred, '\n')
             ##raise e
             continue
 
-    scores["all"] = dict([("count", total), ("exact", right), ("acc", right * 1.0 / total)])
-    scores["select"] = dict([("count", total), ("exact", cnt_sel), ("acc", cnt_sel * 1.0 / total)])
-    scores["condition"] =  dict([("count", total), ("exact", cnt_cond), ("acc", cnt_cond * 1.0 / total)])
-    scores["connection"] =  dict([("count", total), ("exact", cnt_conn), ("acc", cnt_conn * 1.0 / total)])
-    
-    return scores['all']['acc'], scores['all']['acc']
+    for l in level:
+        scores[l]['exact'] = scores[l]['exact'] * 1.0 / scores[l]['count'] if scores[l]['count'] > 0 else 1.0
+        scores[l]['exact(no value)'] = scores[l]['exact(no value)'] * 1.0 / scores[l]['count'] if scores[l]['count'] > 0 else 1.0
+        for pt in partial_types:
+            scores[l]['partial'][pt]['acc'] = scores[l]['partial'][pt]['acc'] * 1.0 / scores[l]['count'] if scores[l]['count'] > 0 else 1.0
+
+    print_scores(scores)
+
+    return scores['all']['exact'], scores['all']['exact(no value)']
+
+
+def print_formated_s(row_name, l, element_format):
+    template = "{:20} " + ' '.join([element_format] * len(l))
+    print(template.format(row_name, *l))
+
+def print_scores(scores):
+    levels = ['easy', 'medium', 'hard', 'extra', 'all']
+    partial_types = ['select', 'connection', 'condition', 'condition(no value)']
+
+    print_formated_s("", levels, '{:20}')
+    counts = [scores[level]['count'] for level in levels]
+    ratios = [scores[level]['count'] * 1.0 / scores['all']['count'] if scores['all']['count'] > 0 else 0 for level in levels]
+    print_formated_s("count", counts, '{:<20d}')
+    print_formated_s("ratio", ratios, '{:<20.4f}')
+
+    print ('=====================   EXACT MATCH ACCURACY  =====================')
+    overall_scores = [scores[level]['exact'] for level in levels]
+    print_formated_s("exact", overall_scores, '{:<20.3f}')
+    print ('=====================   EXACT MATCH (NO VALUE) ACCURACY  =====================')
+    overall_scores = [scores[level]['exact(no value)'] for level in levels]
+    print_formated_s("exact", overall_scores, '{:<20.3f}')
+
+    partition = 'partial'
+    print ('\n---------------------PARTIAL MATCHING ACCURACY----------------------')
+    for type_ in partial_types:
+        this_scores = [scores[level][partition][type_]['acc'] for level in levels]
+        print_formated_s(type_, this_scores, '{:<20.3f}')
+
 
 if __name__ == '__main__':
     # print(query2sql("SELECT 所在省份 , 产线名称 WHERE 日熔量（吨） < 600", []))

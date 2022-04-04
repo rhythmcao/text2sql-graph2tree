@@ -105,6 +105,9 @@ class Evaluator():
         elif dataset == 'cspider_raw':
             from eval.cspider_raw.evaluator import CSpiderRawEvaluator
             return CSpiderRawEvaluator
+        elif dataset == 'nl2sql':
+            from eval.nl2sql.evaluator import NL2SQLEvaluator
+            return NL2SQLEvaluator
         else:
             raise ValueError(f'[Error]: Unrecognized dataset "{dataset}" for evaluator')
 

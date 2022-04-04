@@ -66,7 +66,7 @@ class Parser():
     
     def parse_where(self, conds: list, values: set, cond_conn: int):
         if len(conds) == 1:
-            ast_node = self.parse_cond_unit(conds[0], values)
+            ast_node = self.parse_cond_unit(conds[0], values, 0)
         else:
             conj = 'Or' if cond_conn == 2 else 'And'
             ast_node = AbstractSyntaxTree(self.grammar.get_prod_by_ctr_name(conj + 'Condition' + ASDLConstructor.number2word[len(conds)]))

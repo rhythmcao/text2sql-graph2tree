@@ -2,10 +2,12 @@
 import re
 from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
+from asdl.transition_system import SelectValueAction
 from preprocess.nl2sql.postprocess import ValueProcessor
-from preprocess.process_utils import State
+from preprocess.process_utils import SQLValue, State
 from functools import wraps
 from utils.constants import DEBUG
+from utils.vocab import Vocab
 
 def ignore_error(func):
     @wraps(func)
@@ -32,7 +34,6 @@ class UnParser():
     def unparse(self, sql_ast: AbstractSyntaxTree, *args, **kargs):
         self.sketch = kargs.pop('sketch', False)
         sql = self.unparse_sql(sql_ast, *args, **kargs)
-        # sql = re.sub(r'\s+', ' ', sql)
         return sql, True
     
     def unparse_sql(self, sql_ast: AbstractSyntaxTree, db: dict, *args, **kargs):
@@ -70,7 +71,7 @@ class UnParser():
             cond_fields = where_ast[self.grammar.get_field_by_text('condition condition')]
             for rf in cond_fields:
                 cond_list.append(self.unparse_cond_unit(rf.value, db, *args, **kargs))
-            conj = ' AND ' if ctr_name.startswith('and') else ' OR '
+            conj = ' and ' if ctr_name.startswith('and') else ' or '
             return conj.join(cond_list)
     
     def unparse_col_unit(self, cond_ast: AbstractSyntaxTree, db: dict, value_candidates: list, entry: dict, *args, **kargs):
@@ -80,9 +81,12 @@ class UnParser():
         cmp_name = cond_ast[self.grammar.get_field_by_text('cmp_op cmp_op')][0].value.production.constructor.name
         cmp_op = CMP_OP_MAPPING[cmp_name]
         if self.sketch:
-            value_str = "1"
+            value_str = "\"1\""
         else:
             val_id = int(cond_ast[self.grammar.get_field_by_text('val_id val_id')][0].value)
+            candidate = val_id if val_id < SelectValueAction.size('nl2sql') else value_candidates[val_id]
             state = State('', 'none', cmp_name.strip(), 'none', col_id)
-            value_str = self.value_processor.postprocess_value(val_id, value_candidates, db, state, entry)
+            sqlvalue = SQLValue('', state)
+            sqlvalue.add_candidate(candidate)
+            value_str = self.value_processor.postprocess_value(sqlvalue, db, entry)
         return col_name + cmp_op + value_str

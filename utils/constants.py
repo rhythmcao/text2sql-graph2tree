@@ -34,14 +34,14 @@ RELATIONS = ['question-question-dist' + str(i) if i != 0 else 'question-question
 
 DATASETS = {
     'spider': {
-        'grammar': os.path.join('asdl', 'spider', 'spider_grammar.txt'),
+        'grammar': os.path.join('asdl', 'spider', 'spider_grammar.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'spider'),
         'database': os.path.join('data', 'spider', 'database'),
         'database_testsuite': os.path.join('data', 'spider', 'database-testsuite'),
         'db_content': True,
-        'bridge': True,
-        'value': True,
+        'bridge': True, # False
+        'predict_value': True, # False,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
     'dusql': {
@@ -52,11 +52,11 @@ DATASETS = {
         'database_testsuite': os.path.join('data', 'dusql', 'db_content.json'),
         'db_content': True,
         'bridge': False,
-        'value': True,
+        'predict_value': True,
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('time', '时间'), ('number', '数值'), ('binary', '真假值'), ('others', '其它类型')]),
     },
     'cspider': {
-        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'),
+        'grammar': os.path.join('asdl', 'cspider', 'cspider_grammar.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider'),
         'database': os.path.join('data', 'cspider', 'db_content.json'),
@@ -64,11 +64,11 @@ DATASETS = {
         'cache_folder': './pretrained_models',
         'db_content': True,
         'bridge': False,
-        'value': False, #True,
+        'predict_value': False, # True,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
     'cspider_raw': {
-        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'),
+        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider_raw'),
         'database': os.path.join('data', 'cspider_raw', 'database'),
@@ -76,7 +76,7 @@ DATASETS = {
         'cache_folder': './pretrained_models',
         'db_content': True,
         'bridge': False,
-        'value': False,
+        'predict_value': False,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
     'nl2sql': {
@@ -87,7 +87,7 @@ DATASETS = {
         'database_testsuite': os.path.join('data', 'nl2sql', 'db_content.json'),
         'db_content': True,
         'bridge': True,
-        'value': True,
+        'predict_value': True,
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('real', '数值')]),
     },
 }

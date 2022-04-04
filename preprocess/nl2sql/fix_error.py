@@ -624,7 +624,7 @@ def amend_tables(tables_list, db_file):
         return str(cv).startswith('0') and (not str(cv).startswith('0.')) and (not float_equal(cv, 0))
 
     def check_type(cvs, ct, col_name):
-        if re.search(r'isbn', col_name, flags=re.I): return 'text'
+        if re.search(r'isbn', col_name, flags=re.I): return ct
         cvs = [c for c in cvs if str(c).lower() not in ['none', '-', '--', 'null', 'nan']]
         if len(cvs) == 0: return ct # do not change
         all_endswith_zero, all_endswith_point = True, True # maybe special format

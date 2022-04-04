@@ -28,7 +28,7 @@ class CSpiderEvaluator(Evaluator):
     def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db_id, etype):
         """ @return: score(float): 0 or 1, etype score
         """
-        schema, kmap = self.schema[db_id], self.kmaps[db_id]
+        schema, kmap = self.schemas[db_id], self.kmaps[db_id]
         try:
             pred_sql = pred_sql.replace('==', '=')
             pred_sql = get_sql(schema, pred_sql, single_equal=True)

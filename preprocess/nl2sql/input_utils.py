@@ -1,12 +1,14 @@
 #coding=utf8
-import re, json, string
+import sys, os, re, json, pickle, string
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import numpy as np
 from LAC import LAC
+from rouge import Rouge
 from itertools import combinations
 from numpy.core.fromnumeric import cumsum
-from utils.constants import MAX_RELATIVE_DIST
+from utils.constants import DATASETS, MAX_CELL_NUM, MAX_RELATIVE_DIST
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import is_number, quote_normalization, QUOTATION_MARKS, load_db_contents, extract_db_contents
+from preprocess.process_utils import float_equal, is_number, is_int, quote_normalization, QUOTATION_MARKS, load_db_contents, extract_db_contents, ZH_NUMBER, ZH_WORD2NUM
 
 REPLACEMENT = dict(zip('０１２３４５６７８９％：．～幺（）：％‘’\'`—', '0123456789%:.~一():%“”""-'))
 
@@ -25,7 +27,7 @@ STOPWORDS = set(["的", "是", "有", "多少", "哪些", "我", "什么", "你"
 
 class InputProcessor():
 
-    def __init__(self, encode_method='lgesql', db_dir='data/nl2sql/db_content.json', db_content=True, bridge=False, **kargs):
+    def __init__(self, encode_method='lgesql', db_dir='data/nl2sql/db_content.json', db_content=True, bridge=True, **kargs):
         super(InputProcessor, self).__init__()
         self.db_dir = db_dir
         self.db_content = db_content
@@ -35,6 +37,8 @@ class InputProcessor():
         if self.db_content:
             self.contents = load_db_contents(self.db_dir)
         self.bridge = bridge # whether extract candidate cell values for each column given the question
+        rouge = Rouge(metrics=["rouge-1", "rouge-l"])
+        self.rouge_score = lambda pred, ref: rouge.get_scores(' '.join(list(pred)), ' '.join(list(ref)))[0]
         self.graph_processor = GraphProcessor(encode_method)
         self.table_pmatch, self.table_ematch = 0, 0
         self.column_pmatch, self.column_ematch, self.column_vmatch = 0, 0, 0
@@ -42,8 +46,12 @@ class InputProcessor():
     def pipeline(self, entry: dict, db: dict, verbose: bool = False):
         """ db should be preprocessed """
         entry = self.preprocess_question(entry, verbose=verbose)
-        # entry = self.schema_linking(entry, db, verbose=verbose)
-        # entry = self.graph_processor.process_graph_utils(entry, db)
+        entry = self.schema_linking(entry, db, verbose=verbose)
+        if self.db_content and self.bridge: # use bridge with ROUGE-L
+            cells = self.bridge_content(entry['uncased_question_toks'], db)
+            entry['cells'] = [['='] + sum([self.nlp(c) + ['，'] for c in candidates], [])[:-1] if candidates else [] for candidates in cells]
+        else: entry['cells'] = [[] for _ in range(len(db['column_names']))]
+        entry = self.graph_processor.process_graph_utils(entry, db)
         return entry
 
     def preprocess_database(self, db: dict, verbose: bool = False):
@@ -78,7 +86,10 @@ class InputProcessor():
         db['relations'] = relations.tolist()
 
         if self.db_content:
-            db['cells'] = extract_db_contents(self.contents, db)
+            col_types = db['column_types']
+            db['cells'] = extract_db_contents(self.contents, db, strip=False)
+            db['processed_cells'] = [[normalize_cell_value(c) if col_types[cid] == 'text' else transform_word_to_number(normalize_cell_value(c))
+                for c in filter(lambda x: x.strip().lower() not in ['nan', '-', '--', 'none', 'null', ''], cvs)] for cid, cvs in enumerate(db['cells'])]
         if verbose:
             print('Tokenized tables:', ', '.join(['|'.join(tab) for tab in table_toks]))
             print('Tokenized columns:', ', '.join(['|'.join(col) for col in column_toks]), '\n')
@@ -126,7 +137,7 @@ class InputProcessor():
             cased_toks[idx:idx+2] = ['宁阳县', '伊发机箱制造厂']
         elif '广州东海堂' in cased_toks:
             idx = cased_toks.index('广州东海堂')
-            cased_toks[idx:idx+2] = ['广州', '东海堂']
+            cased_toks[idx:idx+1] = ['广州', '东海堂']
         else:
             for idx, tok in enumerate(cased_toks):
                 match = re.search(r'^(小学|初中|高中|初一|初二|初三|高一|高二|高三)(数学|语文|英语|美术|音乐|体育|物理|化学|地理|生物|历史|政治)$', tok)
@@ -163,8 +174,8 @@ class InputProcessor():
     def schema_linking(self, entry: dict, db: dict, verbose: bool = False):
         """ Perform schema linking: both question and database need to be preprocessed """
         question_toks, column_toks = entry['uncased_question_toks'], db['column_toks']
-        question, column_names = len(question_toks), [''.join(toks) for toks in column_toks]
-        q_num, dtype = ''.join(question_toks), '<U100'
+        question, column_names = ''.join(question_toks), [''.join(toks) for toks in column_toks]
+        q_num, dtype = len(question_toks), '<U100'
 
         def question_schema_matching_method(schema_toks, schema_names, category):
             assert category in ['table', 'column']
@@ -210,33 +221,20 @@ class InputProcessor():
         if self.db_content:
             # create question-value-match relations, be careful with item_mapping
             column_matched_pairs['value'] = []
-
-            def extract_number(word):
-                if is_number(word): return str(float(word))
-                match_obj = re.search(r'^[^\d\.]*([\d\.]+)[^\d\.]*$', word)
-                if match_obj:
-                    span = match_obj.group(1)
-                    if is_number(span): return str(float(span))
-                return word
-
-            num_words = [extract_number(word) for word in question_toks]
+            num_toks = [transform_word_to_number(w) for w in question_toks]
             for cid, col_name in enumerate(column_names):
                 if cid == 0: continue
-                cells = [re.sub(r'\s+', ' ', NORM(c.lower())) for c in db['cells'][cid]] # list of cell values, ['2014', '2015']
-                num_cells = [extract_number(c) for c in cells]
-                for qid, (word, num_word) in enumerate(zip(question_toks, num_words)):
+                col_cells, col_type = db['processed_cells'][cid], db['column_types'][cid]
+                for qid, (word, num_word) in enumerate(zip(question_toks, num_toks)):
                     if 'nomatch' in q_col_mat[qid, cid] and word not in self.stopwords:
-                        for c, nc in zip(cells, num_cells):
-                            if word in c or num_word == nc:
+                        for c in col_cells:
+                            if (word in c and col_type == 'text') or (num_word == c and col_type == 'real'):
                                 q_col_mat[qid, cid] = 'question-column-valuematch'
                                 col_q_mat[cid, qid] = 'column-question-valuematch'
                                 if verbose:
                                     column_matched_pairs['value'].append(str((col_name, cid, c, word, qid, qid + 1)))
                                 break
             self.column_vmatch += np.sum(q_col_mat == 'question-column-valuematch')
-
-        # TODO: use bridge with ROUGE-L
-        entry['cells'] = [[] for _ in range(len(db['column_names']))]
 
         # two symmetric schema linking matrix: q_num x (t_num + c_num), (t_num + c_num) x q_num
         q_col_mat[:, 0] = 'question-column-nomatch'
@@ -255,3 +253,126 @@ class InputProcessor():
                 print(', '.join(column_matched_pairs['value']) if column_matched_pairs['value'] else 'empty')
             print('\n')
         return entry
+    
+    def bridge_content(self, question_toks: list, db: dict):
+        """ Return chosen cell values (at most MAX_CELL_NUM) for each column, e.g.
+        [ ['数学老师', '英语老师'] , ['100%'] , ['10', '20'] , ... ]
+        """
+        cells, col_types = db['processed_cells'], db['column_types']
+        numbers = extract_numbers_in_question(''.join(question_toks))
+        question = ''.join(filter(lambda s: s not in self.stopwords, question_toks))
+        candidates = [[]]
+
+        def number_score(c, numbers):
+            if (not is_number(c)) or len(numbers) == 0: return 0.
+            return max([1. if float_equal(c, r) or float_equal(c, r, 100) else 0. for r in numbers])
+
+        for cid, col_cells in enumerate(cells):
+            if cid == 0: continue
+            if col_types[cid] == 'text':
+                scores = [(c, self.rouge_score(c, question)) for c in col_cells if 0 < len(c) < 80 and c != '.']
+                scores = sorted(filter(lambda x: x[1]['rouge-l']['f'] > 0, scores), key=lambda x: - x[1]['rouge-l']['f'])[:MAX_CELL_NUM]
+                if len(scores) > 1: # at most two cells but the second one must have high rouge-1 precision
+                    scores = scores[:1] + list(filter(lambda x: x[1]['rouge-1']['p'] >= 0.6, scores[1:]))
+            else:
+                scores = sorted(filter(lambda x: x[1] > 0, [(c, number_score(c, numbers)) for c in col_cells]), key=lambda x: - x[1])[:MAX_CELL_NUM]
+                # scores = [] # do not use cell values for real numbers
+            candidates.append(list(map(lambda x: str(int(float(x[0]))) if col_types[cid] == 'real' and is_int(x[0]) else x[0], scores)))
+        return candidates
+
+def normalize_cell_value(c):
+    return re.sub(r'\s+', ' ', NORM(c.strip().lower()))
+
+def extract_numbers_in_question(question):
+    candidates = []
+    for span in re.finditer(r'([0-9\.点负%s十百千万亿]+)' % (ZH_NUMBER), question):
+        s, e = span.start(), span.end()
+        word = question[s: e]
+        if s > 0 and re.search(r'[\-周/e]', question[s]): continue
+        if e < len(question) and re.search(r'[些批部层楼下手共月周日号股线ae]', question[e]): continue
+        if is_number(word):
+            candidates.append(str(float(word)))
+        try:
+            parsed_num = ZH_WORD2NUM(word.rstrip('万亿'))
+            candidates.append(str(float(parsed_num)))
+        except Exception as e: pass
+    return candidates
+
+def transform_word_to_number(word):
+    """ Transform the number occurred in the word
+    """
+    match_obj = re.search(r'[0-9\.点负%s十百千万亿]+' % (ZH_NUMBER), word)
+    if match_obj:
+        span = match_obj.group(0)
+        s, e = match_obj.start(), match_obj.end()
+        if not (s > 0 and word[s - 1] == '/') and not (e < len(word) and re.search(r'[些批部层楼下手共月日号股线ae\-/]', word[e])):
+            if is_number(span): return str(float(span))
+            try:
+                parsed_num = ZH_WORD2NUM(word.rstrip('万亿'))
+                return str(float(parsed_num))
+            except: pass
+    return word
+
+
+if __name__ == '__main__':
+    import time
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained('./pretrained_models/chinese-macbert-large')
+    # check BRIDGE function
+    processor = InputProcessor()
+    data_dir = DATASETS['nl2sql']['data']
+    tables = pickle.load(open(os.path.join(data_dir, 'tables.bin'), 'rb'))
+    train, dev = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb')), pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
+    real_bridge, text_bridge, all_bridge, text_tp, real_tp, text_count, real_count = 0, 0, 0, 0, 0, 0, 0
+    input_lens, dataset = [], train
+    data_index = np.arange(len(dataset))
+    # np.random.shuffle(data_index)[:1000]
+    start_time = time.time()
+    for jdx, ex_id in enumerate(data_index):
+        if (jdx + 1) % 1000 == 0:
+            print('Processing %d-th example ...' % (jdx + 1))
+        ex = train[ex_id]
+        db_id = ex['db_id']
+        db = tables[db_id]
+        question_toks, col_types = ex['uncased_question_toks'], db['column_types']
+        cells = processor.bridge_content(question_toks, db)
+        processed_cells = [['='] + sum([processor.nlp(c) + ['，'] for c in candidates], [])[:-1] if candidates else [] for candidates in cells]
+        values = [(cond[0], cond[2]) for cond in ex['sql']['conds']]
+        for cid, cv in values:
+            ct = col_types[cid]
+            cv = normalize_cell_value(cv)
+            cv = str(int(float(cv))) if ct == 'real' and is_int(cv) else cv
+            if cv in cells[cid]:
+                if ct == 'text': text_tp += 1
+                else: real_tp += 1
+            if ct == 'text': text_count += 1
+            else: real_count += 1
+        real_bridge += sum([len(cv) for cid, cv in enumerate(cells) if col_types[cid] == 'real'])
+        text_bridge += sum([len(cv) for cid, cv in enumerate(cells) if col_types[cid] == 'text'])
+        all_bridge += sum([len(cv) for cv in cells])
+
+        table = [[DATASETS['nl2sql']['schema_types']['table']] + t for t in db['table_toks']]
+        column = [[DATASETS['nl2sql']['schema_types'][db['column_types'][idx]]] + c + processed_cells[idx]
+                for idx, c in enumerate(db['column_toks'])]
+
+        if False:
+            print(' '.join(question_toks))
+            print(ex['query'])
+            print('\n'.join([' '.join(db['column_toks'][cid]) + '[%s] ' % (col_types[cid]) + ' '.join(processed_cells[cid]) for cid, _ in values]))
+            print('\n')
+        
+        toks = sum([question_toks] + table + column, []) # ensure that input_length < 512
+        input_len = len([tokenizer.tokenize(w) for w in toks]) + 3 # plus 3, CLS SEP SEP
+        input_lens.append(input_len)
+
+    print('In total, true/all real SQL value count: %s/%s' % (real_tp, real_count))
+    print('In total, true/all text SQL value count: %s/%s' % (text_tp, text_count))
+    print('In total, bridge value count real/text/all %s/%s/%s' % (real_bridge, text_bridge, all_bridge))
+    print('MAX/MIN/AVG input len %s/%s/%.2f' % (max(input_lens), min(input_lens), sum(input_lens) / float(len(data_index))))
+    print('Cost %.2fs .' % (time.time() - start_time))
+
+    # In total, true/all real SQL value count: 3593/19982
+    # In total, true/all text SQL value count: 45356/47666
+    # In total, bridge value count real/text/all 15554/151592/167146
+    # MAX/MIN/AVG input len 241/20/62.84
+    # Cost 711.29s .

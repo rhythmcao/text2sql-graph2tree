@@ -1,7 +1,5 @@
 #coding=utf8
 import re, os, sys, copy, math, json, pickle
-
-from transformers import BertForMaskedLM
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import string
 import numpy as np
@@ -91,6 +89,10 @@ def parse_date(value_str):
     return None
 
 
+def jaccard_score(s1, s2):
+    return len(set(s1) & set(s2)) * 1.0 / len(set(s1) | set(s2))
+
+
 class ValueProcessor():
 
     def __init__(self, table_path, db_dir) -> None:
@@ -104,8 +106,8 @@ class ValueProcessor():
         db_contents = load_db_contents(self.db_dir)
         self.entries = self._load_db_entries(db_contents)
         self.contents = self._load_db_contents(db_contents)
-        rouge = Rouge(metrics=["rouge-1", "rouge-l"])
-        self.rouge_score = lambda pred, ref: rouge.get_scores(' '.join(list(pred)), ' '.join(list(ref)))[0]
+        rouge = Rouge(metrics=["rouge-1"])
+        self.rouge_score = lambda pred, ref: rouge.get_scores(' '.join(list(pred)), ' '.join(list(ref)))[0]['rouge-1']
         self.stopwords = STOPWORDS | set(QUOTATION_MARKS + list('，。！￥？（）《》、；·…' + string.punctuation))
 
     def _load_db_entries(self, db_contents):
@@ -307,41 +309,33 @@ class ValueProcessor():
             elif try_parsing_digits_sensitive(value_str): return '"' + output_str + '"'
             elif try_parsing_date(value_str): return '"' + output_str + '"'
 
-            idx = self.select_cell_idx_with_heuristic_rules(value_str, normed_cell_values, entry['uncased_question_toks'])
+            idx = self.select_cell_idx_with_heuristic_rules(value_str, normed_cell_values)
             if idx is not None: return '"' + cell_values[idx] + '"'
 
         return '"' + value_str + '"'
 
 
-    def select_cell_idx_with_heuristic_rules(self, value_str, cell_values, question_toks=None):
+    def select_cell_idx_with_heuristic_rules(self, value_str, cell_values):
         value_str = NUM_NORM(value_str)
         scores = [self.rouge_score(value_str, c) for _, c in cell_values]
-        max_score = max(scores, key=lambda s: (s['rouge-l']['f'], s['rouge-1']['p']))
-        max_score = (max_score['rouge-l']['f'], max_score['rouge-1']['p'])
+        max_score = max(scores, key=lambda s: (s['f'], s['p']))
+        max_score = (max_score['f'], max_score['p'])
 
         if max_score[0] > 0: # at least one char matching
-            max_idxs = [idx for idx, score in enumerate(scores) if float_equal(score['rouge-l']['f'], max_score[0]) and float_equal(score['rouge-1']['p'], max_score[1])]
+            max_idxs = [idx for idx, score in enumerate(scores) if float_equal(score['f'], max_score[0]) and float_equal(score['p'], max_score[1])]
             if len(max_idxs) == 1:
                 return cell_values[max_idxs[0]][0]
 
+            # use editdistance to resolve ambiguity
             candidates = [cell_values[idx][1] for idx in max_idxs]
-            if question_toks is not None:
-                # use the entire question to resolve ambiguity
-                question = NUM_NORM(''.join(filter(lambda s: s not in self.stopwords, question_toks)))
-                scores = [(idx, self.rouge_score(c, question)) for idx, c in enumerate(candidates)]
-                max_score = max(scores, key=lambda x: (x[1]['rouge-l']['f'], x[1]['rouge-1']['p']))
-                max_idx = max_idxs[max_score[0]]
-                return cell_values[max_idx][0]
-            else:
-                # use editdistance to resolve ambiguity
-                most_similar = process.extractOne(value_str, candidates)
-                candidate = most_similar[0]
-                return cell_values[max_idxs[candidates.index(candidate)]][0]
+            most_similar = process.extractOne(value_str, candidates)
+            candidate = most_similar[0]
+            return cell_values[max_idxs[candidates.index(candidate)]][0]
         return None
 
 
     def select_cell_idx_with_bert_similarity(self, value_str, cells):
-        return None
+        raise NotImplementedError
 
 
 if __name__ == '__main__':

@@ -145,7 +145,8 @@ class ValueExtractor():
         def is_num_variants(val):
             if str(val) + '.0' in question: span = str(val) + '.0'
             elif re.search(r'[^\d]0' + str(val), question): span = '0' + str(val)
-            elif val <= 10 and re.search(r'[^\d]' + str(val) + '年', question): span = str(val) + '年'
+            elif val == 10 and re.search(r'十年', question): span = '十年'
+            elif val < 10 and re.search(r'[^\d]' + str(val) + '年', question): span = str(val) + '年'
             elif str(val) in question: span = str(val)
             else: return False
             start_id = question.index(span)
@@ -198,7 +199,7 @@ class ValueExtractor():
         if len(start_ids) > 0:
             start_id = start_ids[0] # directly use the first one
             add_value_from_char_idx((start_id, start_id + len(str(num))), question_toks, sqlvalue, entry)
-        elif try_number_to_word(num, question, question_toks, sqlvalue, entry):  pass
+        elif try_number_to_word(num, question, question_toks, sqlvalue, entry): pass
         elif num == 0:
             if '负' in question or (not self.use_extracted_values(sqlvalue, values)):
                 add_value_from_reserved('0', sqlvalue)

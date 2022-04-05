@@ -150,16 +150,16 @@ class ValueProcessor():
             reserved_vocab = SelectValueAction.vocab('nl2sql').id2word
             value_str = reserved_vocab[vc]
             if value_str in ['0', '1']:
-                output_str = '"' + str(value_str) + '"'
+                output_str = str(value_str)
             elif col_type == 'real':
-                output_str = '"1"' if value_str == '是' else '"0"'
+                output_str = '1' if value_str == '是' else '0'
             elif value_str == '是':
                 filtered_values = [c for c in cell_values if '是' in c or '有' in c or '√' in c]
                 output_str = filtered_values[0] if len(filtered_values) > 0 else '是'
             else:
                 filtered_values = [c for c in cell_values if '否' in c or '不' in c or '无' in c or '未' in c or '免' in c or '没有' in c or 'no' in c or c == '/']
                 output_str = filtered_values[0] if len(filtered_values) > 0 else value_str
-            return output_str
+            return '"' + output_str + '"'
 
         assert isinstance(vc, ValueCandidate)
         value_str = vc.matched_cased_value
@@ -187,7 +187,7 @@ class ValueProcessor():
                     metric = re.search(r'(万亿|千亿|百亿|十亿|千万|百万|十万|亿|万|千字)', metric_in_brackets.group(1))
                     if metric:
                         divider = np.prod([ZH_UNIT_MAPPING[c] for c in metric.group(1) if c in ZH_UNIT_MAPPING])
-                
+
                 if is_number(span):
                     span = int(float(span)) if is_int(span) else float(span)
                     if divider and is_int(span) and span % divider == 0:

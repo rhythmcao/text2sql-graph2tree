@@ -1,5 +1,5 @@
-task=gtl
-seed=999
+task=gtl_simple
+seed=$2
 device=0
 ddp='--ddp' # --ddp
 testing='' # --testing
@@ -7,9 +7,9 @@ read_model_path=''
 read_ts_order_path=''
 read_canonical_action_path=''
 
-plm=$1 # xlm-roberta-large, xlm-roberta-large-finetuned-conll03-english
+plm=infoxlm-large # xlm-roberta-large, xlm-roberta-large-finetuned-conll03-english
 encode_method=lgesql # irnet, rgatsql, lgesql
-local_and_nonlocal=msde # mmc, msde, local, global
+local_and_nonlocal=$1 # mmc, msde, local, global
 gnn_hidden_size=512
 gnn_num_layers=8
 num_heads=8

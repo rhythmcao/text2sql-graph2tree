@@ -4,8 +4,8 @@ mwf=4
 vocab_glove='pretrained_models/glove.42b.300d/vocab_glove.txt'
 vocab='pretrained_models/glove.42b.300d/vocab.txt'
 
-#echo "Fix some annotation errors in the dataset ..."
-#python3 -u preprocess/spider/fix_error.py #> error.log
+echo "Fix some annotation errors in the dataset ..."
+python3 -u preprocess/spider/fix_error.py #> error.log
 
 echo "Start to preprocess the original train dataset ..."
 python3 -u preprocess/process_input.py --dataset 'spider' --raw_table --data_split train --encode_method $encode_method --skip_large #--verbose > train.log

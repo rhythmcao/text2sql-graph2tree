@@ -253,7 +253,7 @@ class InputProcessor():
                 print(', '.join(column_matched_pairs['value']) if column_matched_pairs['value'] else 'empty')
             print('\n')
         return entry
-    
+
     def bridge_content(self, question_toks: list, db: dict):
         """ Return chosen cell values (at most MAX_CELL_NUM) for each column, e.g.
         [ ['数学老师', '英语老师'] , ['100%'] , ['10', '20'] , ... ]
@@ -356,7 +356,7 @@ if __name__ == '__main__':
             print(ex['query'])
             print('\n'.join([' '.join(db['column_toks'][cid]) + '[%s] ' % (col_types[cid]) + ' '.join(processed_cells[cid]) for cid, _ in values]))
             print('\n')
-        
+
         toks = sum([question_toks] + table + column, []) # ensure that input_length < 512
         input_len = len([tokenizer.tokenize(w) for w in toks]) + 3 # plus 3, CLS SEP SEP
         input_lens.append(input_len)

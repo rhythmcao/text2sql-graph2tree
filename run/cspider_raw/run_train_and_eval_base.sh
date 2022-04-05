@@ -1,5 +1,5 @@
-task=gtl
-seed=999
+task=gtl_simple
+seed=$2
 device=0
 ddp='--ddp' # --ddp
 testing='' # --testing

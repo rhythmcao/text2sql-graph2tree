@@ -1,4 +1,4 @@
-task=gtl
+task=gtl_simple
 seed=999
 device=0
 ddp='--ddp' # --ddp

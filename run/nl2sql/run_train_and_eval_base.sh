@@ -43,8 +43,8 @@ l2=0.1
 warmup_ratio=0.1
 lr_schedule=linear
 smoothing=0.15
-eval_after_epoch=100
-max_epoch=160
+eval_after_epoch=50
+max_epoch=80
 max_norm=5
 beam_size=5
 

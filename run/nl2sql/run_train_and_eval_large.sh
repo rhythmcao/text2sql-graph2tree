@@ -36,7 +36,7 @@ struct_feeding='--struct_feeding'
 
 batch_size=20
 test_batch_size=50
-grad_accumulate=1
+grad_accumulate=2
 lr=1e-4
 layerwise_decay=0.8
 l2=0.1

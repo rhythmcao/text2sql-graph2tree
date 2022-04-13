@@ -36,15 +36,15 @@ struct_feeding='--struct_feeding'
 
 batch_size=20
 test_batch_size=50
-grad_accumulate=2
+grad_accumulate=1
 lr=2e-4
 layerwise_decay=0.8
 l2=0.1
 warmup_ratio=0.1
 lr_schedule=linear
 smoothing=0.15
-eval_after_epoch=50
-max_epoch=80
+eval_after_epoch=60
+max_epoch=100
 max_norm=5
 beam_size=5
 

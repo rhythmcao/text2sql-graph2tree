@@ -1,5 +1,5 @@
 #coding=utf8
-import sys, os, json, argparse, time, torch
+import sys, os, json, argparse, time, torch, pickle
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from argparse import Namespace
 from torch.utils.data import DataLoader
@@ -45,6 +45,9 @@ with torch.no_grad():
         hyps, vals, _ = model.parse(cur_batch, args.beam_size, ts_order=args.ts_order)
         all_hyps.extend(hyps)
         all_vals.extend(vals)
+
+pickle.dump(all_hyps, open(os.path.join(args.read_model_path, 'hyps.ast'), 'wb'))
+pickle.dump(all_vals, open(os.path.join(args.read_model_path, 'hyps.val'), 'wb'))
 
 output_path = os.path.join(args.read_model_path, args.output_file)
 print('Start writing predicted sqls to file %s' % (output_path))

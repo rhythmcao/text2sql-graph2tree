@@ -90,19 +90,29 @@ class InputProcessor():
 
     def preprocess_database(self, db: dict, verbose: bool = False):
         """ Tokenize, lemmatize, lowercase table and column names for each database """
-        table_toks = []
+        table_toks, processed_table_toks, processed_table_names = [], [], []
         for tab in db['table_names']:
             doc = self.nlp_en(tab)
             tab = [w.text.lower() for s in doc.sentences for w in s.words]
+            ptab = [w.lemma.lower() for s in doc.sentences for w in s.words]
             table_toks.append(tab)
+            processed_table_toks.append(ptab)
+            processed_table_names.append(" ".join(ptab))
         db['table_toks'] = table_toks
+        db['processed_table_toks'] = processed_table_toks
+        db['processed_table_names'] = processed_table_names
 
-        column_toks = []
+        column_toks, processed_column_toks, processed_column_names = [], [], []
         for _, c in db['column_names']:
             doc = self.nlp_en(c)
             c = [w.text.lower() for s in doc.sentences for w in s.words]
+            pc = [w.lemma.lower() for s in doc.sentences for w in s.words]
             column_toks.append(c)
+            processed_column_toks.append(pc)
+            processed_column_names.append(" ".join(pc))
         db['column_toks'] = column_toks
+        db['processed_column_toks'] = processed_column_toks
+        db['processed_column_names'] =  processed_column_names
 
         column2table = list(map(lambda x: x[0], db['column_names'])) # from column id to table id
         table2columns = [[] for _ in range(len(db['table_names']))] # from table id to column ids list

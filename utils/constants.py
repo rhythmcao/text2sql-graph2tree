@@ -34,7 +34,7 @@ RELATIONS = ['question-question-dist' + str(i) if i != 0 else 'question-question
 
 DATASETS = {
     'spider': {
-        'grammar': os.path.join('asdl', 'spider', 'spider_grammar.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
+        'grammar': os.path.join('asdl', 'spider', 'spider_grammar_simple.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'spider'),
         'database': os.path.join('data', 'spider', 'database'),
@@ -63,19 +63,19 @@ DATASETS = {
         'database_testsuite': os.path.join('data', 'cspider', 'db_content.json'),
         'cache_folder': './pretrained_models',
         'db_content': True,
-        'bridge': False,
+        'bridge': True,
         'predict_value': False, # True,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },
     'cspider_raw': {
-        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'),
+        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider_raw'),
         'database': os.path.join('data', 'cspider_raw', 'database'),
         'database_testsuite': os.path.join('data', 'cspider_raw', 'database'),
         'cache_folder': './pretrained_models',
         'db_content': True,
-        'bridge': False,
+        'bridge': True,
         'predict_value': False,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'time', 'number', 'boolean', 'others']]),
     },

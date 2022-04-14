@@ -87,7 +87,7 @@ if __name__ == '__main__':
     if 'cspider' in args.dataset and args.translator != 'none':
         dataset_path = os.path.join(data_dir, args.data_split + '_' + args.translator + '.json')
         dataset = json.load(open(dataset_path, 'r'))
-        if args.dataset == 'cspider_raw':
+        if args.dataset == 'cspider_raw' and args.data_split == 'train':
             dataset_path = os.path.join('data/spider', args.data_split + '.json')
             dataset += json.load(open(dataset_path, 'r')) # merge two en dataset
         output_path = os.path.join(data_dir, '.'.join([args.data_split + '_' + args.translator, args.encode_method, 'bin']))

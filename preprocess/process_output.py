@@ -54,6 +54,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('--dataset', type=str, required=True, choices=['spider', 'dusql', 'wikisql', 'nl2sql', 'cspider', 'cspider_raw'])
     arg_parser.add_argument('--data_split', type=str, required=True, choices=['train', 'dev', 'test'], help='dataset path')
     arg_parser.add_argument('--encode_method', type=str, required=True, choices=['irnet', 'ratsql', 'lgesql'])
+    arg_parser.add_argument('--translator', default='none', choices=['none', 'mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b'], help='translator model')
     arg_parser.add_argument('--verbose', action='store_true', help='whether print processing information')
     args = arg_parser.parse_args()
 
@@ -62,7 +63,9 @@ if __name__ == '__main__':
     data_dir, db_dir = DATASETS[args.dataset]['data'], DATASETS[args.dataset]['database']
     tables = pickle.load(open(os.path.join(data_dir, 'tables.bin'), 'rb'))
     processor = get_output_processor(args.dataset, table_path=tables, db_dir=db_dir)
-    dataset_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
+    if 'cspider' in args.translator and args.translator != 'none':
+        dataset_path = os.path.join(data_dir, '.'.join([args.data_split + '_' + args.translator, args.encode_method, 'bin']))
+    else: dataset_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
     dataset = pickle.load(open(dataset_path, 'rb'))
     dataset = process_dataset_output(processor, dataset, tables, dataset_path, skip_error=True, verbose=args.verbose)
     print('Dataset preprocessing costs %.4fs .' % (time.time() - start_time))

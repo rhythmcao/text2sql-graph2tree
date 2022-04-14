@@ -5,10 +5,14 @@ from utils.constants import DATASETS
 
 def get_input_processor(**kargs):
     dataset = kargs.pop('dataset', 'spider')
+    translator = kargs.pop('translator', 'none')
     if dataset == 'spider':
         from preprocess.spider.input_utils import InputProcessor
     elif dataset == 'dusql':
         from preprocess.dusql.input_utils import InputProcessor
+    elif 'cspider' in dataset and translator != 'none':
+        from preprocess.spider.input_utils import InputProcessor
+        dataset = 'spider'
     elif dataset == 'cspider':
         from preprocess.cspider.input_utils import InputProcessor
     elif dataset == 'cspider_raw':
@@ -60,6 +64,7 @@ if __name__ == '__main__':
     arg_parser.add_argument('--data_split', type=str, required=True, choices=['train', 'dev', 'test'], help='dataset path')
     arg_parser.add_argument('--raw_table', action='store_true', help='use raw tables, need preprocessing')
     arg_parser.add_argument('--encode_method', choices=['irnet', 'rgatsql', 'lgesql'], default='lgesql', help='gnn model name')
+    arg_parser.add_argument('--translator', default='none', choices=['none', 'mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b'], help='translator model')
     arg_parser.add_argument('--skip_large', action='store_true', help='whether skip large databases')
     arg_parser.add_argument('--verbose', action='store_true', help='whether print processing information')
     args = arg_parser.parse_args()
@@ -79,10 +84,18 @@ if __name__ == '__main__':
     else: tables = pickle.load(open(table_path, 'rb'))
 
     start_time = time.time()
-    dataset_path = os.path.join(data_dir, args.data_split + '.json')
-    dataset = json.load(open(dataset_path, 'r'))
-    output_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
+    if 'cspider' in args.dataset and args.translator != 'none':
+        dataset_path = os.path.join(data_dir, args.data_split + '_' + args.translator + '.json')
+        dataset = json.load(open(dataset_path, 'r'))
+        if args.dataset == 'cspider_raw':
+            dataset_path = os.path.join('data/spider', args.data_split + '.json')
+            dataset += json.load(open(dataset_path, 'r')) # merge two en dataset
+        output_path = os.path.join(data_dir, '.'.join([args.data_split + '_' + args.translator, args.encode_method, 'bin']))
+    else:
+        dataset_path = os.path.join(data_dir, args.data_split + '.json')
+        dataset = json.load(open(dataset_path, 'r'))
+        output_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
     dataset = process_dataset_input(processor, dataset, tables, output_path, args.skip_large, verbose=args.verbose)
-    if 'cspider' in args.dataset:
+    if 'cspider' in args.dataset and args.translator == 'none':
         processor.translator.save_translation_memory()
     print('Dataset preprocessing costs %.4fs .' % (time.time() - start_time))

@@ -29,7 +29,7 @@ if args.read_model_path:
 else: params = args
 # set up the grammar, order controller, transition system, evaluator, vocabulary, etc.
 Example.configuration(params.dataset, plm=params.plm, encode_method=params.encode_method, ts_order_path=params.read_ts_order_path)
-train_dataset, dev_dataset = Example.load_dataset('train'), Example.load_dataset('dev')
+train_dataset, dev_dataset = Example.load_dataset('train', translator=params.translator), Example.load_dataset('dev', translator=params.translator)
 logger.info(f"Load dataset and database finished, cost {time.time() - start_time:.4f}s ...")
 logger.info(f"Dataset size: train -> {len(train_dataset):d} ; dev -> {len(dev_dataset):d}")
 sql_trans, controller, evaluator = Example.trans, Example.order_controller, Example.evaluator

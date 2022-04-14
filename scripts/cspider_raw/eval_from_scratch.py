@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from argparse import Namespace
 from preprocess.process_input import get_input_processor, process_tables, process_dataset_input
 from preprocess.cspider_raw.fix_error import amend_primary_keys, amend_foreign_keys, amend_boolean_types
+from preprocess.cspider_raw.question_translate import SentenceTranslator
 from utils.initialization import set_torch_device
 from utils.constants import DEBUG
 from utils.example import Example
@@ -12,13 +13,18 @@ from torch.utils.data import DataLoader
 from model.model_utils import Registrable
 from model.model_constructor import *
 
-def preprocess_database_and_dataset(db_dir='database/', table_path='data/tables.json', dataset_path='data/dev.json', encode_method='lgesql'):
+def preprocess_database_and_dataset(db_dir='database/', table_path='data/tables.json', dataset_path='data/dev.json', encode_method='lgesql', translator='none'):
     tables = json.load(open(table_path, 'r'))
     tables = amend_primary_keys(tables)
     tables = amend_foreign_keys(tables)
     tables = amend_boolean_types(tables, db_dir)
     dataset = json.load(open(dataset_path, 'r'))
-    processor = get_input_processor(dataset='cspider_raw', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=False)
+    if translator == 'none':
+        processor = get_input_processor('cspider_raw', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=True)
+    else:
+        translator = SentenceTranslator(model_name=translator)
+        dataset = translator.translate(dataset, batch_size=20)
+        processor = get_input_processor('spider', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=True)
     output_tables = process_tables(processor, tables)
     output_dataset = process_dataset_input(processor, dataset, output_tables)
     return output_dataset, output_tables
@@ -32,13 +38,14 @@ parser.add_argument('--output_path', default='predicted_sql.txt', help='output p
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
 parser.add_argument('--ts_order', default='controller', choices=['enum', 'controller'], help='order method for evaluation')
+parser.add_argument('--translator', default='none', choices=['mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b', 'none'], help='translator for cspider series')
 parser.add_argument('--deviceId', type=int, default=-1, help='-1 -> CPU ; GPU index o.w.')
 args = parser.parse_args(sys.argv[1:])
 
 assert not DEBUG
 params = json.load(open(os.path.join(args.read_model_path, 'params.json'), 'r'), object_hook=lambda d: Namespace(**d))
 params.lazy_load = True # load PLM from AutoConfig instead of AutoModel.from_pretrained(...)
-dataset, tables = preprocess_database_and_dataset(db_dir=args.db_dir, table_path=args.table_path, dataset_path=args.dataset_path, encode_method=params.encode_method)
+dataset, tables = preprocess_database_and_dataset(db_dir=args.db_dir, table_path=args.table_path, dataset_path=args.dataset_path, encode_method=params.encode_method, translator=args.translator)
 Example.configuration('cspider_raw', plm=params.plm, encode_method=params.encode_method, tables=tables, table_path=args.table_path, db_dir=args.db_dir, ts_order_path=os.path.join(args.read_model_path, 'order.bin'))
 dataset = Example.load_dataset(dataset=dataset)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=Example.collate_fn)

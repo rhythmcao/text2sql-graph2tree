@@ -17,7 +17,7 @@ def hyperparam_path_text2sql(args):
     task = 'task_%s__encoder_%s__dataset_%s' % (args.task, args.encode_method, args.dataset)
 
     # encoder params
-    exp_path = ''
+    exp_path = '' if args.translator == 'none' else args.translator + '__'
     if args.ts_order == 'enum' or args.uts_order == 'enum':
         exp_path += 'gs_%s__nb_%s__ts_%s__uts_%s' % (args.gtl_size, args.n_best, args.ts_order, args.uts_order)
     else:

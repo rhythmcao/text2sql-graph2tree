@@ -1,6 +1,7 @@
 #coding=utf8
 import os, json, sys, gc, torch
 from easynmt import EasyNMT
+from nltk import word_tokenize
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from utils.constants import DATASETS
 
@@ -21,6 +22,7 @@ class SentenceTranslator():
                 translated_questions.extend(self.translator.translate(questions[idx: idx + batch_size], source_lang='zh', target_lang=target_lang, batch_size=batch_size))
         for idx, ex in enumerate(dataset):
             ex['question'] = translated_questions[idx]
+            ex['question_toks'] = word_tokenize(ex['question'])
         return dataset
 
     def change_translator(self, model_name):
@@ -33,7 +35,7 @@ class SentenceTranslator():
 if __name__ == '__main__':
 
     models = ['mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b']
-    data_dir = DATASETS['cspider']['data']
+    data_dir = DATASETS['cspider_raw']['data']
     translator = SentenceTranslator(models[0])
 
     # translate the raw chinese sentences into english
@@ -52,8 +54,24 @@ if __name__ == '__main__':
         gc.collect()
         torch.cuda.empty_cache()
 
-        # test = json.load(open(os.path.join(data_dir, 'test.json'), 'r'))
-        # test = translator.translate(test)
-        # json.dump(test, open(os.path.join(data_dir, 'test_' + model + '.json'), 'w'), indent=4, ensure_ascii=False)
-        # gc.collect()
-        # torch.cuda.empty_cache()
+    data_dir = DATASETS['cspider']['data']
+    for model in models:
+        translator.change_translator(model)
+
+        train = json.load(open(os.path.join(data_dir, 'train.json'), 'r'))
+        train = translator.translate(train)
+        json.dump(train, open(os.path.join(data_dir, 'train_' + model + '.json'), 'w'), indent=4, ensure_ascii=False)
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        dev = json.load(open(os.path.join(data_dir, 'dev.json'), 'r'))
+        dev = translator.translate(dev)
+        json.dump(dev, open(os.path.join(data_dir, 'dev_' + model + '.json'), 'w'), indent=4, ensure_ascii=False)
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        test = json.load(open(os.path.join(data_dir, 'test.json'), 'r'))
+        test = translator.translate(test)
+        json.dump(test, open(os.path.join(data_dir, 'test_' + model + '.json'), 'w'), indent=4, ensure_ascii=False)
+        gc.collect()
+        torch.cuda.empty_cache()

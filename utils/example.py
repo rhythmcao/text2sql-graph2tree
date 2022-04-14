@@ -68,13 +68,17 @@ class Example():
 
 
     @classmethod
-    def load_dataset(cls, choice='train', dataset=None):
+    def load_dataset(cls, choice='train', dataset=None, translator='none'):
         if dataset is None:
             assert choice in ['train', 'dev', 'test']
             # fp = os.path.join(cls.data_dir, choice + '.' + cls.encode_method + '.bin') if not DEBUG else \
                 # os.path.join(cls.data_dir, 'train.' + cls.encode_method + '.bin')
-            fp = os.path.join(cls.data_dir, choice + '.lgesql.bin') if not DEBUG else \
-                os.path.join(cls.data_dir, 'train.lgesql.bin')
+            if 'cspider' in Example.dataset and translator != 'none':
+                fp = os.path.join(cls.data_dir, choice + '_' + translator + '.lgesql.bin') if not DEBUG else \
+                    os.path.join(cls.data_dir, 'train' + '_' + translator + '.lgesql.bin')
+            else:
+                fp = os.path.join(cls.data_dir, choice + '.lgesql.bin') if not DEBUG else \
+                    os.path.join(cls.data_dir, 'train.lgesql.bin')
             dataset = pickle.load(open(fp, 'rb'))
         else: choice = 'test'
 

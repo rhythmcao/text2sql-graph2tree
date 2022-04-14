@@ -38,14 +38,13 @@ parser.add_argument('--output_path', default='predicted_sql.txt', help='output p
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
 parser.add_argument('--ts_order', default='controller', choices=['enum', 'controller'], help='order method for evaluation')
-parser.add_argument('--translator', default='none', choices=['mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b', 'none'], help='translator for cspider series')
 parser.add_argument('--deviceId', type=int, default=-1, help='-1 -> CPU ; GPU index o.w.')
 args = parser.parse_args(sys.argv[1:])
 
 assert not DEBUG
 params = json.load(open(os.path.join(args.read_model_path, 'params.json'), 'r'), object_hook=lambda d: Namespace(**d))
 params.lazy_load = True # load PLM from AutoConfig instead of AutoModel.from_pretrained(...)
-dataset, tables = preprocess_database_and_dataset(db_dir=args.db_dir, table_path=args.table_path, dataset_path=args.dataset_path, encode_method=params.encode_method, translator=args.translator)
+dataset, tables = preprocess_database_and_dataset(db_dir=args.db_dir, table_path=args.table_path, dataset_path=args.dataset_path, encode_method=params.encode_method, translator=params.translator)
 Example.configuration('cspider_raw', plm=params.plm, encode_method=params.encode_method, tables=tables, table_path=args.table_path, db_dir=args.db_dir, ts_order_path=os.path.join(args.read_model_path, 'order.bin'))
 dataset = Example.load_dataset(dataset=dataset)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=Example.collate_fn)

@@ -1,4 +1,4 @@
-task=gtl
+task=gtl_translate
 seed=999
 device=0
 ddp='--ddp' # --ddp
@@ -7,7 +7,8 @@ read_model_path=''
 read_ts_order_path=''
 read_canonical_action_path=''
 
-plm=bert-base-multilingual-uncased # infoxlm-base, xlm-align-base, xlm-roberta-base
+translator=mbart50_m2m #'mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b'
+plm=electra-base-discriminator #bert-base-multilingual-uncased # infoxlm-base, xlm-align-base, xlm-roberta-base
 encode_method=lgesql # irnet, rgatsql, lgesql
 local_and_nonlocal=$1 # mmc, msde, local, global
 gnn_hidden_size=512
@@ -54,7 +55,7 @@ ts_order=random
 uts_order=enum
 
 python -u scripts/cspider/train_and_eval.py --task $task --dataset 'cspider' --seed $seed --device $device $ddp $testing $read_model_path $read_ts_order_path $read_canonical_action_path \
-    --plm $plm --encode_method $encode_method --local_and_nonlocal $local_and_nonlocal --gnn_hidden_size $gnn_hidden_size --gnn_num_layers $gnn_num_layers --num_heads $num_heads \
+    --translator $translator --plm $plm --encode_method $encode_method --local_and_nonlocal $local_and_nonlocal --gnn_hidden_size $gnn_hidden_size --gnn_num_layers $gnn_num_layers --num_heads $num_heads \
     --schema_aggregation $schema_aggregation --subword_aggregation $subword_aggregation --value_aggregation $value_aggregation --score_function $score_function \
     $relation_share_layers $relation_share_heads --dropout $dropout --attn_drop $attn_drop --drop_connect $drop_connect \
     --lstm $lstm --chunk_size $chunk_size --lstm_hidden_size $lstm_hidden_size --lstm_num_layers $lstm_num_layers --att_vec_size $att_vec_size $context_feeding \

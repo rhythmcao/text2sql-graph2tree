@@ -16,7 +16,6 @@ parser.add_argument('--output_file', default='cspider.sql', help='output predict
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
 parser.add_argument('--ts_order', choices=['controller', 'enum'], default='controller', help='input node selection method')
-parser.add_argument('--translator', default='none', choices=['mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b', 'none'], help='translator for cspider series')
 parser.add_argument('--deviceId', type=int, default=0, help='-1 -> CPU ; GPU index o.w.')
 args = parser.parse_args(sys.argv[1:])
 
@@ -27,7 +26,7 @@ params.lazy_load = True # load PLM from AutoConfig instead of AutoModel.from_pre
 # Example configuration
 Example.configuration('cspider', plm=params.plm, encode_method=params.encode_method, ts_order_path=os.path.join(args.read_model_path, 'order.bin'))
 # load test dataset
-dataset = Example.load_dataset('test', translator=args.translator)
+dataset = Example.load_dataset('test', translator=params.translator)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=Example.collate_fn)
 # set torch device
 device = set_torch_device(args.deviceId)

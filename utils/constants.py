@@ -34,7 +34,7 @@ RELATIONS = ['question-question-dist' + str(i) if i != 0 else 'question-question
 
 DATASETS = {
     'spider': {
-        'grammar': os.path.join('asdl', 'spider', 'spider_grammar_simple.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
+        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'spider'),
         'database': os.path.join('data', 'spider', 'database'),
@@ -56,7 +56,7 @@ DATASETS = {
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('time', '时间'), ('number', '数值'), ('binary', '真假值'), ('others', '其它类型')]),
     },
     'cspider': {
-        'grammar': os.path.join('asdl', 'cspider', 'cspider_grammar.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
+        'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'cspider'),
         'database': os.path.join('data', 'cspider', 'db_content.json'),

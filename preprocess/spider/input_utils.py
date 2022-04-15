@@ -42,7 +42,7 @@ class InputProcessor():
         db['table_toks'] = table_toks
         db['processed_table_toks'] = processed_table_toks
         db['processed_table_names'] = processed_table_names
-        
+
         column_toks, processed_column_toks, processed_column_names = [], [], []
         for _, c in db['column_names']:
             doc = self.nlp(c)
@@ -121,6 +121,7 @@ class InputProcessor():
         uncased_toks = [w.text.lower() for s in doc.sentences for w in s.words]
         processed_toks = [w.lemma.lower() for s in doc.sentences for w in s.words]
         # pos_tags = [w.xpos for s in doc.sentences for w in s.words]
+        entry['question'] = question
         entry['cased_question_toks'] = cased_toks
         entry['uncased_question_toks'] = uncased_toks
         entry['processed_question_toks'] = processed_toks

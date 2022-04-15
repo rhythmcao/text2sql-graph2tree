@@ -63,7 +63,7 @@ if __name__ == '__main__':
     data_dir, db_dir = DATASETS[args.dataset]['data'], DATASETS[args.dataset]['database']
     tables = pickle.load(open(os.path.join(data_dir, 'tables.bin'), 'rb'))
     processor = get_output_processor(args.dataset, table_path=tables, db_dir=db_dir)
-    if 'cspider' in args.translator and args.translator != 'none':
+    if 'cspider' in args.dataset and args.translator != 'none':
         dataset_path = os.path.join(data_dir, '.'.join([args.data_split + '_' + args.translator, args.encode_method, 'bin']))
     else: dataset_path = os.path.join(data_dir, '.'.join([args.data_split, args.encode_method, 'bin']))
     dataset = pickle.load(open(dataset_path, 'rb'))

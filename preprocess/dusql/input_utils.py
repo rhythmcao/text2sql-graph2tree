@@ -1,15 +1,26 @@
 #coding=utf8
-import re, json, string
+import os, sys, re, json, pickle, string
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import numpy as np
 from LAC import LAC
+from rouge import Rouge
 from itertools import product, combinations
 from numpy.core.fromnumeric import cumsum
-from utils.constants import MAX_RELATIVE_DIST
+from utils.constants import MAX_RELATIVE_DIST, DATASETS, MAX_CELL_NUM
 from preprocess.graph_utils import GraphProcessor
-from preprocess.process_utils import is_number, quote_normalization, QUOTATION_MARKS, load_db_contents, extract_db_contents
-from preprocess.dusql.bridge_content_encoder import STOPWORDS, get_database_matches
+from preprocess.process_utils import quote_normalization, QUOTATION_MARKS, ZH_WORD2NUM, ZH_NUMBER, ZH_UNIT
+from preprocess.process_utils import float_equal, is_number, is_int, load_db_contents, extract_db_contents, AGG_OP
 
-NUMBER_REPLACEMENT = list(zip('０１２３４５６７８９％：．～', '0123456789%:.~'))
+STOPWORDS = set(["的", "是", "有", "多少", "哪些", "我", "什么", "你", "知道", "啊", "给出", "以及", "之", "从", "找", "找到", "哪里", "该", "种",
+"来自", "一下", "吗", "在", "请问", "或者", "或", "想", "和", "为", "后", "那个", "是什么", "这", "对应", "并", "于", "找出", "她们", "她", "那么",
+"被", "了", "并且", "都", "呢", "前", "哪个", "还有", "这个", "上", "下", "就是", "其", "它们", "及", "所", "所在", "那些", "他", "他们", "如果", "可",
+"没有", "它", "要求", "谁", "了解", "不足", "时候", "个", "能", "那", "问", "中", "这些", "比", "拥有", "且", "同时", "这里", "那里", "啥", "由", "由于",
+"没", "可以", "起来", "哪", "其他", "叫", "分别", "及其", "当", "之后", "都是", "过", "与", "额", "几个", "到", "占", "数", "的话", "等于", "各", "按",
+"每个", "每一个", "人", "属于", "不", "不是", "值", "包含", "各个", "但", "但是", "多多少", "多少次", "多少年", "含", "加", "按照", "所有", "时", "长",
+"小于", "大于", "至少", "超过", "不少", "少于", "不止", "多于", "低于", "高于", "超", "多", "少", "高", "低", "总共", "一共", "正好", "不到", "不在"])
+
+REPLACEMENT = dict(zip('０１２３４５６７８９％：．～（）：％‘’\'`—', '0123456789%:.~():%“”""-'))
+NORM = lambda s: re.sub(r'[０１２３４５６７８９％：．～（）：％‘’\'`—]', lambda c: REPLACEMENT[c.group(0)], s)
 
 class InputProcessor():
 
@@ -23,6 +34,8 @@ class InputProcessor():
         if self.db_content:
             self.contents = load_db_contents(self.db_dir)
         self.bridge = bridge # whether extract candidate cell values for each column given the question
+        rouge = Rouge(metrics=["rouge-1", "rouge-l"])
+        self.rouge_score = lambda pred, ref: rouge.get_scores(' '.join(list(pred)), ' '.join(list(ref)))[0]
         self.graph_processor = GraphProcessor(encode_method)
         self.table_pmatch, self.table_ematch = 0, 0
         self.column_pmatch, self.column_ematch, self.column_vmatch = 0, 0, 0
@@ -31,6 +44,10 @@ class InputProcessor():
         """ db should be preprocessed """
         entry = self.preprocess_question(entry, verbose=verbose)
         entry = self.schema_linking(entry, db, verbose=verbose)
+        if self.db_content and self.bridge: # use bridge with ROUGE-L
+            cells = self.bridge_content(entry, db)
+            entry['cells'] = [['='] + sum([self.nlp(c) + ['，'] for c in candidates], [])[:-1] if candidates else [] for candidates in cells]
+        else: entry['cells'] = [[] for _ in range(len(db['column_names']))]
         entry = self.graph_processor.process_graph_utils(entry, db)
         return entry
 
@@ -108,6 +125,8 @@ class InputProcessor():
 
         if self.db_content:
             db['cells'] = extract_db_contents(self.contents, db)
+            db['processed_cells'] = [[transform_word_to_number(normalize_cell_value(c)) if db['column_types'][cid] == 'number' else normalize_cell_value(c)
+                for c in cvs] for cid, cvs in enumerate(db['cells'])]
         if verbose:
             print('Tokenized tables:', ', '.join(['|'.join(tab) for tab in table_toks]))
             print('Tokenized columns:', ', '.join(['|'.join(col) for col in column_toks]), '\n')
@@ -131,9 +150,7 @@ class InputProcessor():
             question = question.replace(raw_item, ' ' + item_mapping[raw_item] + ' ')
         # quote and numbers normalization
         question = quote_normalization(question)
-        for raw, new in NUMBER_REPLACEMENT:
-            question = question.replace(raw, new)
-        entry['question'] = re.sub(r'\s+', ' ', question)
+        entry['question'] = re.sub(r'\s+', ' ', NORM(question))
         return entry
 
     def preprocess_question(self, entry: dict, verbose: bool = False):
@@ -254,22 +271,6 @@ class InputProcessor():
                                 break
             self.column_vmatch += np.sum(q_col_mat == 'question-column-valuematch')
 
-        # extract candidate cell values for each column given the current question
-        if self.bridge:
-            cells = [[]] # map column_id to candidate values relevant to the question
-            for col_id in range(len(db['column_names'])):
-                if col_id == 0: continue
-                candidates = db['cells'][col_id]
-                candidates = [entry['item_mapping'][c] if c in entry['item_mapping'] else str(c).lower() for c in candidates]
-                candidates = get_database_matches(question, candidates, db['column_names'][col_id][1], db['column_types'][col_id])
-                if candidates:
-                    candidates = [self.nlp(c) for c in candidates]
-                    candidates = ['='] + sum([re.sub(r'\s+', ' ', ' '.join(toks)).strip().split(' ') + ['，'] for toks in candidates], [])[:-1]
-                    cells.append(candidates)
-                else: cells.append([])
-        else: cells = [[] for _ in range(len(db['column_names']))]
-        entry['cells'] = cells
-
         # two symmetric schema linking matrix: q_num x (t_num + c_num), (t_num + c_num) x q_num
         q_col_mat[:, 0] = 'question-column-nomatch'
         col_q_mat[0] = 'column-question-nomatch'
@@ -292,3 +293,166 @@ class InputProcessor():
                 print(', '.join(column_matched_pairs['value']) if column_matched_pairs['value'] else 'empty')
             print('\n')
         return entry
+
+    def bridge_content(self, entry, db):
+        # extract candidate cell values for each column given the current question
+        cells, raw_cells, col_types = db['processed_cells'], db['cells'], db['column_types']
+        question_toks = entry['uncased_question_toks']
+        numbers = extract_numbers_in_question(''.join(question_toks))
+        question = ''.join(filter(lambda s: s not in self.stopwords, question_toks))
+
+        def number_score(c, numbers):
+            if (not is_number(c)) or len(numbers) == 0: return 0.
+            return max([1. if float_equal(c, r) else 0.5 if float_equal(c, r, 100) or float_equal(c, r, 1e3) or float_equal(c, r, 1e4) or float_equal(c, r, 1e8) else 0. for r in numbers])
+
+        candidates = [[]] # map column_id to candidate values relevant to the question
+        for col_id, col_cells in enumerate(cells):
+            if col_id == 0: continue
+            tmp_candidates = []
+            for c in col_cells:
+                if c.startswith('item_') and c in entry['item_mapping']:
+                    tmp_candidates.append(entry['item_mapping'][c])
+            if len(tmp_candidates) > 0:
+                candidates.append(tmp_candidates)
+                continue
+            if col_types[col_id] == 'binary': candidates.append([])
+            elif col_types[col_id] == 'time':
+                candidates.append([c for c in col_cells if c in question][:MAX_CELL_NUM])
+            elif col_types[col_id] == 'number':
+                scores = sorted(filter(lambda x: x[1] > 0, [(cid, number_score(c, numbers)) for cid, c in enumerate(col_cells)]), key=lambda x: - x[1])[:MAX_CELL_NUM]
+                if len(scores) > 1:
+                    scores = scores[:1] + list(filter(lambda x: x[1] >= 0.6, scores[1:]))
+                candidates.append([normalize_cell_value(raw_cells[col_id][cid]) for cid, _ in scores])
+            else: # by default, text
+                scores = [(c, self.rouge_score(c, question)) for c in col_cells if 0 < len(c) < 50 and c != '.']
+                scores = sorted(filter(lambda x: x[1]['rouge-l']['f'] > 0, scores), key=lambda x: (- x[1]['rouge-l']['f'], - x[1]['rouge-1']['p']))[:MAX_CELL_NUM]
+                if len(scores) > 1: # at most two cells but the second one must have high rouge-1 precision
+                    scores = scores[:1] + list(filter(lambda x: x[1]['rouge-1']['p'] >= 0.6, scores[1:]))
+                candidates.append([c for c, _ in scores])
+        return candidates
+
+def normalize_cell_value(c):
+    return re.sub(r'\s+', ' ', NORM(str(c).strip().lower()))
+
+def extract_numbers_in_question(question):
+    candidates = []
+    question = re.sub(r'(千米|千克|千瓦|千卡|千斤|百分之|item\d+|km|kg|cm)', '', question, flags=re.I)
+    for span in re.finditer(r'([0-9\.点负\-%s%s]+)' % (ZH_NUMBER, ZH_UNIT), question):
+        s, e = span.start(), span.end()
+        word = question[s: e]
+        if s > 0 and re.search(r'([a-z每年月周_/]|星期)', question[s - 1]): continue
+        if e < len(question) and re.search(r'[a-z些批部层楼下手共月日星号时分秒股线_\-/]', question[e]): continue
+        if is_number(word):
+            candidates.append(str(float(word)))
+        try:
+            parsed_num = ZH_WORD2NUM(word.rstrip('万亿'))
+            candidates.append(str(float(parsed_num)))
+        except Exception as e: pass
+    return candidates
+
+def transform_word_to_number(word):
+    """ Transform the number occurred in the word
+    """
+    word = str(word)
+    if word.startswith('item_'): return word
+    word = re.sub(r'(千米|千克|千瓦|千卡|千斤|百分之|kg|km|cm)', '', word, flags=re.I)
+    match_obj = re.search(r'[0-9\.负\-%s%s]+' % (ZH_NUMBER, ZH_UNIT), word)
+    if match_obj:
+        span = match_obj.group(0)
+        s, e = match_obj.start(), match_obj.end()
+        if not (s > 0 and re.search(r'([a-z每年月周_/]|星期)', word[s - 1], flags=re.I)) and not (e < len(word) and re.search(r'[a-z些批部层楼下手共月日星号时分秒股线_\-/]', word[e])):
+            if is_number(span): return str(float(span))
+            try:
+                parsed_num = ZH_WORD2NUM(word.rstrip('万亿'))
+                return str(float(parsed_num))
+            except: pass
+    return word
+
+
+if __name__ == '__main__':
+    import time
+    from collections import defaultdict
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained('./pretrained_models/chinese-macbert-large')
+    # check BRIDGE function
+    processor = InputProcessor()
+    data_dir = DATASETS['dusql']['data']
+    tables = pickle.load(open(os.path.join(data_dir, 'tables.bin'), 'rb'))
+    train, dev = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb')), pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
+    count = defaultdict(lambda : [0, 0])
+    bridge_count = defaultdict(lambda : [0, 0])
+    input_lens, dataset = [], dev
+    start_time = time.time()
+
+    def extract_values(sql, s):
+        table_units = sql['from']['table_units']
+        if table_units[0][0] == 'sql':
+            s = extract_values(sql['from']['table_units'][0][1], s)
+            s = extract_values(sql['from']['table_units'][1][1], s)
+        for cond in sql['where']:
+            if cond in ['and', 'or']: continue
+            _, _, val_unit, val, _ = cond
+            if type(val) == dict: s = extract_values(val, s)
+            else:
+                col_id = val_unit[1][1]
+                if type(col_id) == str: continue # TIME_NOW
+                val = normalize_cell_value(str(val))
+                s.add((col_id, val))
+        for cond in sql['having']:
+            if cond in ['and', 'or']: continue
+            agg_op, _, val_unit, val, _ = cond
+            if type(val) == dict: s = extract_values(val, s)
+            elif AGG_OP[agg_op] in ['max', 'min']:
+                col_id = val_unit[1][1]
+                if type(col_id) == str: continue # TIME_NOW
+                val = normalize_cell_value(str(val))
+                s.add((col_id, val))
+        for choice in ['intersect', 'union', 'except']:
+            if sql[choice]: s = extract_values(sql[choice], s)
+        return s
+
+    for jdx, ex in enumerate(dataset):
+        if (jdx + 1) % 1000 == 0:
+            print('Processing %d-th example ...' % (jdx + 1))
+        db = tables[ex['db_id']]
+        question_toks, col_types = ex['uncased_question_toks'], db['column_types']
+        cells = processor.bridge_content(ex, db)
+        processed_cells = [['='] + sum([processor.nlp(c) + ['，'] for c in candidates], [])[:-1] if candidates else [] for candidates in cells]
+        values = extract_values(ex['sql'], set())
+        for cid, cv in values:
+            ct = col_types[cid]
+            if ct == 'number':
+                if len(cells[cid]) > 0:
+                    count[ct][0] += 1
+                    count['all'][0] += 1
+            else:
+                if cv in cells[cid]:
+                    count[ct][0] += 1
+                    count['all'][0] += 1
+            count[ct][1] += 1
+            count['all'][1] += 1
+
+        for cid, col_cells in enumerate(cells):
+            bridge_count[col_types[cid]][0] += len(col_cells)
+            bridge_count[col_types[cid]][1] += 1
+            bridge_count['all'][0] += len(col_cells)
+            bridge_count['all'][1] += 1
+
+        table = [[DATASETS['dusql']['schema_types']['table']] + t for t in db['table_toks']]
+        column = [[DATASETS['dusql']['schema_types'][db['column_types'][idx]]] + c + processed_cells[idx]
+                for idx, c in enumerate(db['column_toks'])]
+
+        if False:
+            print(' '.join(question_toks))
+            print(ex['query'])
+            print('\n'.join([' '.join(db['column_toks'][cid]) + '[%s] ' % (col_types[cid]) + ' '.join(processed_cells[cid]) for cid, _ in values]))
+            print('\n')
+
+        toks = sum([question_toks] + table + column, []) # ensure that input_length < 512
+        input_len = len([tokenizer.tokenize(w) for w in toks]) + 3 # plus 3, CLS SEP SEP
+        input_lens.append(input_len)
+
+    print('In total, true/all SQL value count for each column type is:\n', ' , '.join([k + '->' + '%d/%d' % (count[k][0], count[k][1]) for k in count]))
+    print('In total, bridge values/columns count for each column type is:\n', ' , '.join([k + '->' + '%d/%d' % (bridge_count[k][0], bridge_count[k][1]) for k in bridge_count]))
+    print('MAX/MIN/AVG input len with PLM is %s/%s/%.2f' % (max(input_lens), min(input_lens), sum(input_lens) / float(len(dataset))))
+    print('Cost %.2fs .' % (time.time() - start_time))

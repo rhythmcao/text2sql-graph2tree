@@ -1,10 +1,9 @@
 #coding=utf8
-import re, os, sys, copy, math, json, pickle
+import re, os, sys, json, pickle
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import string
 import numpy as np
 from decimal import Decimal
-from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 from rouge import Rouge
 from asdl.transition_system import SelectValueAction
@@ -104,21 +103,10 @@ class ValueProcessor():
             self.tables = pickle.load(open(table_path, 'rb'))
         else: self.tables = table_path
         db_contents = load_db_contents(self.db_dir)
-        self.entries = self._load_db_entries(db_contents)
         self.contents = self._load_db_contents(db_contents)
         rouge = Rouge(metrics=["rouge-1"])
         self.rouge_score = lambda pred, ref: rouge.get_scores(' '.join(list(pred)), ' '.join(list(ref)))[0]['rouge-1']
         self.stopwords = STOPWORDS | set(QUOTATION_MARKS + list('，。！￥？（）《》、；·…' + string.punctuation))
-
-    def _load_db_entries(self, db_contents):
-        """ Given db_id, list of reference (column id, value) pairs, e.g. [ (1, '24'), (4, '36'), ... ]
-        extract the list of all distinct entries (rows)
-        """
-        entries = {}
-        for db_id in self.tables:
-            db = self.tables[db_id]
-            entries[db_id] = db_contents[db['db_id']][db['table_names'][0]]['cell']
-        return entries
 
     def _load_db_contents(self, db_contents):
         """ Given db_id and column id, extract the list of all distinct cell values, e.g. self.contents[db_id][col_id]
@@ -128,12 +116,6 @@ class ValueProcessor():
             db = self.tables[db_id]
             contents[db_id] = db['cells'] if 'cells' in db else extract_db_contents(db_contents, db, strip=False)
         return contents
-    
-    def extract_values_with_constraints(self, db_id, constraints: list, target_id):
-        entries = self.entries[db_id]
-        for col_id, value in constraints:
-            entries = list(filter(lambda row: row[col_id] == value, entries))
-        return set([row[target_id] for row in entries])
 
     def postprocess_value(self, sqlvalue, db, entry):
         """

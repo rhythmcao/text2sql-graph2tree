@@ -1,6 +1,6 @@
 #coding=utf8
 import re, math, json
-import cn2an
+import cn2an, datetime
 from itertools import chain
 from typing import List, Set, Tuple
 from fuzzywuzzy import process
@@ -175,7 +175,8 @@ def map_en_string_to_number(s: str, month_week: bool = True):
     suffixes = ['s', 'st', 'nd', 'rd', 'th']
     for suf in suffixes:
         try:
-            num = w2n.word_to_num(s.rstrip(suf).rstrip('-').strip())
+            s_ = s[:-len(suf)] if s.endswith(suf) else s
+            num = w2n.word_to_num(s_.rstrip('-').strip())
             return num
         except: pass
     # try mapping to frequency number
@@ -191,12 +192,16 @@ def map_en_string_to_date(s: str):
     """ During postprocessing, try to map english word string into datetime format `2021-01-01`
     """
     try:
-        s = re.sub(r'\s*(-|:)\s*', lambda match: match.group(1), s) # remove whitespace near - and :
+        s = re.sub(r'\s*(-|:)\s*', lambda match: match.group(1), s).strip() # remove whitespace near - and :
+        if re.search(r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}$', s) or \
+            re.search(r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}$', s) or re.search(r'^\d{1,2}[\-/][a-zA-Z]{3,4}[\-/]\d{4}$', s) or \
+            re.search(r'^\d{1,2}:\d{1,2}:\d{1,2}$', s): return s
         datetime_obj = datetime_parser.parse(s, fuzzy=True)
-        if datetime_obj.hour != 0 or datetime_obj.minute != 0 or datetime_obj.second != 0:
+        today = datetime.datetime.today()
+        if datetime_obj.year == today.year: return None
+        elif datetime_obj.hour != 0 or datetime_obj.minute != 0 or datetime_obj.second != 0:
             norm_date = str(datetime_obj.strftime("%Y-%m-%d %H:%M:%S"))
-        else:
-            norm_date = str(datetime_obj.strftime("%Y-%m-%d"))
+        else: norm_date = str(datetime_obj.strftime("%Y-%m-%d"))
         return norm_date
     except: return None
 

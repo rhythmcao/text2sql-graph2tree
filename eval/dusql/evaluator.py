@@ -107,12 +107,29 @@ class SurfaceChecker():
                 table_names += list(map(lambda table_unit: table_unit[1].strip('_'), nested_sql['from']['table_units']))
         else:
             table_names = list(map(lambda table_unit: table_unit[1].strip('_'), sql['from']['table_units']))
+            if len(sql['from']['conds']) > 0 and not self.from_condition_check(sql['from']['conds'], table_names, db): return False
         return self.select_check(sql['select'], table_names, db) & \
             self.cond_check(sql['from']['conds'], table_names, db, False) & \
             self.cond_check(sql['where'], table_names, db, False) & \
             self.groupby_check(sql['groupBy'], table_names, db) & \
             self.cond_check(sql['having'], table_names, db, True) & \
             self.orderby_check(sql['orderBy'], table_names, db)
+
+    def from_condition_check(self, conds: list, table_names: list, db: dict):
+        flags = {tn: False for tn in table_names}
+        count = {tn: table_names.count(tn) for tn in table_names}
+        for cond_unit in conds:
+            if cond_unit in ['and', 'or']: continue
+            _, _, val_unit, val1, _ = cond_unit
+            col_name1, col_name2 = val_unit[1][1], val1[1]
+            tab_name1, tab_name2 = col_name1.strip('_').split('.')[0], col_name2.strip('_').split('.')[0]
+            if tab_name1 not in table_names: return False
+            if tab_name2 not in table_names: return False
+            if tab_name1 == tab_name2 and count[tab_name1] == 1: return False
+            flags[tab_name1] = True
+            flags[tab_name2] = True
+        if not all(flags.values()): return False
+        return True
 
     def select_check(self, select: list, table_names: list, db: dict):
         if not select: return False

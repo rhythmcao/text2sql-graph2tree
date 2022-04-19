@@ -615,9 +615,11 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                     turn_scores['exec'].append(1)
                 else:
                     turn_scores['exec'].append(0)
-                    print("{} pred: {}".format(hardness, p_str))
-                    print("{} gold: {}".format(hardness, g_str))
-                    print("")
+                    if etype == 'exec':
+                        print("db_id: {}".format(db_name))
+                        print("{} pred: {}".format(hardness, p_str))
+                        print("{} gold: {}".format(hardness, g_str))
+                        print("")
 
             if etype in ["all", "match"]:
                 # rebuild sql for value evaluation
@@ -633,6 +635,7 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                 if exact_score == 0:
                     turn_scores['exact'].append(0)
                     if etype == 'match':
+                        print("db_id: {}".format(db_name))
                         print("{} pred: {}".format(hardness, p_str))
                         print("{} gold: {}".format(hardness, g_str))
                         print("")
@@ -664,6 +667,12 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                     'exact': exact_score,
                     'partial': partial_scores
                 })
+
+            if etype == 'all' and exec_score == 0 and exact_score == 1:
+                print("db_id: {}".format(db_name))
+                print("{} pred: {}".format(hardness, p_str))
+                print("{} gold: {}".format(hardness, g_str))
+                print("")
 
         if all(v == 1 for v in turn_scores["exec"]):
             scores['joint_all']['exec'] += 1

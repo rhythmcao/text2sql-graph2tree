@@ -32,7 +32,7 @@ class ValueProcessor():
             self.contents[db_id] = db['cells'] if 'cells' in db else extract_db_contents(contents, db)
         return self.contents
 
-    def postprocess_value(self, value_id, value_candidates, db, state, entry):
+    def postprocess_value(self, sqlvalue, db, entry):
         """ Retrieve DB cell values for reference
         @params:
             value_id: int for SelectAction
@@ -41,16 +41,17 @@ class ValueProcessor():
             state: namedtuple of (track, agg_op, cmp_op, unit_op, col_id)
         @return: value_str
         """
+        vc, state = sqlvalue.candidate, sqlvalue.state
         clause = state.track.split('->')[-1]
-        agg_op, col_id = state.agg_op, state.col_id
+        agg_op, unit_op, col_id = state.agg_op, state.unit_op, state.col_id
         like_op = 'like' in state.cmp_op
         raw_question = entry['question']
-        col_type = db['column_types'][col_id]
+        col_type = 'number' if agg_op != 'none' or unit_op != 'none' else db['column_types'][col_id]
         cell_values = self.contents[db['db_id']][col_id]
         output = None
 
-        if value_id < SelectValueAction.size('cspider'): # reserved values such as null, true, false, 0, 1
-            value_str = SelectValueAction.vocab('cspider').id2word[value_id]
+        if type(vc) == int: # reserved values such as null, true, false, 0, 1
+            value_str = SelectValueAction.vocab('cspider').id2word[vc]
             if clause == 'limit': # value should be integers larger than 0
                 output = 1
             elif clause == 'having' or col_id == 0: # value should be integers
@@ -73,7 +74,6 @@ class ValueProcessor():
                 else: # 0 or 1 for WHERE value
                     output = int(value_str) if col_type == 'number' else str(value_str)
         else:
-            vc = value_candidates[value_id - SelectValueAction.size('cspider')]
             cased_value_str = vc.matched_cased_value
             cased_value_str = re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + PLACEHOLDER + match_obj.group(2), cased_value_str)
             cased_value_str = re.sub(r'\s+', '', cased_value_str).replace(PLACEHOLDER, ' ')

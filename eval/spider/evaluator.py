@@ -100,7 +100,8 @@ class SurfaceChecker():
     def validity_check(self, sql: str, db: dict):
         """ Check whether the given sql query is valid, including:
         1. only use columns in tables mentioned in FROM clause
-        2. comparison operator or MAX/MIN/SUM/AVG only applied to columns of type number/time
+        2. table JOIN conditions t1.col1=t2.col2 must use all tables and col1, col2 belongs to different tables
+        3. comparison operator or MAX/MIN/SUM/AVG only applied to columns of type number/time
         @params:
             sql(str): SQL query
             db(dict): database dict
@@ -129,11 +130,28 @@ class SurfaceChecker():
             table_ids = []
         else:
             table_ids = list(map(lambda table_unit: table_unit[1], sql['from']['table_units']))
+            if len(sql['from']['conds']) > 0: # predict FROM conditions
+                if not self.from_condition_check(sql['from']['conds'], table_ids, db): return False
         return self.select_check(sql['select'], table_ids, db) & \
             self.cond_check(sql['where'], table_ids, db) & \
             self.groupby_check(sql['groupBy'], table_ids, db) & \
             self.cond_check(sql['having'], table_ids, db) & \
             self.orderby_check(sql['orderBy'], table_ids, db)
+
+    def from_condition_check(self, conds: list, table_ids: list, db: dict):
+        flags = {tid: False for tid in table_ids} # whether use this table in FROM JOIN conditions
+        count = {tid: table_ids.count(tid) for tid in table_ids} # number of occurrences for each table
+        for cond in conds:
+            if cond in ['and', 'or']: continue
+            _, _, val_unit, val1, _ = cond
+            col_id1, col_id2 = val_unit[1][1], val1[1]
+            tid1, tid2 = db['column_names'][col_id1][0], db['column_names'][col_id2][0]
+            if tid1 not in table_ids or tid2 not in table_ids: return False
+            if tid1 == tid2 and count[tid1] == 1: return False # if JOIN the same table, table must appear multiple times in FROM
+            flags[tid1] = True
+            flags[tid2] = True
+        if not all(flags.values()): return False # there exists one table which is not joined
+        return True
 
     def select_check(self, select, table_ids: list, db: dict):
         select = select[1]

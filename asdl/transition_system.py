@@ -144,8 +144,8 @@ class TransitionSystem(object):
     @staticmethod
     def get_class_by_dataset(dataset):
         if dataset == 'spider':
-            # from asdl.spider.sql_transition_system import SQLTransitionSystem
-            from asdl.spider.sql_transition_system_simple import SQLTransitionSystem
+            from asdl.spider.sql_transition_system import SQLTransitionSystem
+            # from asdl.spider.sql_transition_system_simple import SQLTransitionSystem
         elif dataset == 'dusql':
             from asdl.dusql.sql_transition_system import SQLTransitionSystem
         elif dataset == 'cspider_raw':

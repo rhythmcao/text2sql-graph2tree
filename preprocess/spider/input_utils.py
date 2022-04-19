@@ -121,7 +121,6 @@ class InputProcessor():
         uncased_toks = [w.text.lower() for s in doc.sentences for w in s.words]
         processed_toks = [w.lemma.lower() for s in doc.sentences for w in s.words]
         # pos_tags = [w.xpos for s in doc.sentences for w in s.words]
-        entry['question'] = question
         entry['cased_question_toks'] = cased_toks
         entry['uncased_question_toks'] = uncased_toks
         entry['processed_question_toks'] = processed_toks

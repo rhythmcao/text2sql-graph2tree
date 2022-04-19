@@ -10,7 +10,7 @@ from collections import Counter
 from utils.constants import DATASETS
 from asdl.transition_system import SelectValueAction
 from preprocess.process_utils import is_number, is_int, BOOL_TRUE_ZH, BOOL_FALSE_ZH, ZH_NUMBER, ZH_UNIT, ZH_UNIT_MAPPING, ZH_RESERVE_CHARS, ZH_NUM2WORD, ZH_WORD2NUM
-from preprocess.process_utils import load_db_contents, extract_db_contents
+from preprocess.process_utils import load_db_contents, extract_db_contents, ValueCandidate
 from preprocess.dusql.value_utils import PLACEHOLDER
 
 def compare_and_extract_date(t1, t2):
@@ -114,25 +114,22 @@ class ValueProcessor():
             self.contents[db_id] = db['cells'] if 'cells' in db else extract_db_contents(contents, db)
         return self.contents
 
-    def postprocess_value(self, value_id, value_candidates, db, state, entry):
+    def postprocess_value(self, sqlvalue, db, entry):
         """ Retrieve DB cell values for reference
         @params:
-            value_id: int for SelectAction
-            value_candidates: list of ValueCandidate for matched value
-            db: database schema dict
-            state: namedtuple of (track, agg_op, cmp_op, unit_op, column_id/TIME_NOW)
+            sqlvalue: class SQLValue, the current condition value to be resolved
+            db: dict, tables
+            entry: Example of the current sample
         @return: value_str
         """
-        raw_value = SelectValueAction.vocab('dusql').id2word[value_id] if value_id < SelectValueAction.size('dusql') else \
-            value_candidates[value_id - SelectValueAction.size('dusql')].matched_cased_value
-        # chinese chars do not have whitespace, while whitespace is needed between english words
-        # when ValueCandidate is constructed in models/encoder/auxiliary.py, whitespaces are inserted in matched_value
-        raw_value= re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + PLACEHOLDER + match_obj.group(2), raw_value)
-        raw_value = re.sub(r'\s+', '', raw_value).replace(PLACEHOLDER, ' ')
-        value = self.postprocess_raw_value_string(raw_value, db, state, entry)
-        return value
+        vc, state = sqlvalue.candidate, sqlvalue.state
+        if type(vc) == int: raw_value = SelectValueAction.vocab('dusql').id2word[vc]
+        else:
+            # chinese chars do not have whitespace, while whitespace is needed between english words
+            # when ValueCandidate is constructed in models/encoder/auxiliary.py, whitespaces are inserted in matched_value
+            raw_value= re.sub(r'([a-zA-Z0-9])\s+([a-zA-Z0-9])', lambda match_obj: match_obj.group(1) + PLACEHOLDER + match_obj.group(2), vc.matched_cased_value)
+            raw_value = re.sub(r'\s+', '', raw_value).replace(PLACEHOLDER, ' ')
 
-    def postprocess_raw_value_string(self, raw_value, db, state, entry):
         value = ''
         clause, col_id = state.track.split('->')[-1], state.col_id
         if col_id == 'TIME_NOW':
@@ -283,19 +280,6 @@ if __name__ == '__main__':
             return True
         return False
 
-    from preprocess.process_utils import ValueCandidate
-    def generate_test_samples(dataset):
-        samples = []
-        for ex in dataset:
-            values = ex['values']
-            cur_pairs = []
-            for v in values:
-                # state: (track, agg_op, col_id/str, cmp_op)
-                match_value = v.candidate.matched_cased_value if isinstance(v.candidate, ValueCandidate) else SelectValueAction.vocab('dusql').id2word[v.candidate]
-                cur_pairs.append((v.real_value, v.state, match_value))
-            samples.append(cur_pairs)
-        return samples
-
     # try to normalize the value mentioned in the question into the SQL values in the query
     data_dir = DATASETS['dusql']['data']
     table_path = os.path.join(data_dir, 'tables.bin')
@@ -305,24 +289,25 @@ if __name__ == '__main__':
     dataset = pickle.load(open(os.path.join(data_dir, 'train.lgesql.bin'), 'rb'))
     # dataset = pickle.load(open(os.path.join(data_dir, 'dev.lgesql.bin'), 'rb'))
 
-    test_samples = generate_test_samples(dataset)
+    test_samples = [ex['values'] for ex in dataset]
     instance_correct, count, correct = 0, 0, 0
-    for entry, sample in zip(dataset, test_samples):
+    for entry, sqlvalues in zip(dataset, test_samples):
         db = processor.tables[entry['db_id']]
-        flag, count = True, count + len(sample)
-        for gold_value, state, match_value in sample:
-            pred_value = processor.postprocess_raw_value_string(match_value, db, state, entry)
-            if _equal(pred_value, gold_value): correct += 1
+        flag, count = True, count + len(sqlvalues)
+        for sqlvalue in sqlvalues:
+            pred_value = processor.postprocess_value(sqlvalue, db, entry)
+            if _equal(pred_value, sqlvalue.real_value): correct += 1
             else:
-                flag = False
+                flag, state, candidate = False, sqlvalue.state, sqlvalue.candidate
                 clause, col_id = state.track.split('->')[-1], state.col_id
+                matched_value = candidate.matched_cased_value if isinstance(candidate, ValueCandidate) else SelectValueAction.vocab('dusql').id2word[candidate]
                 if col_id == 'TIME_NOW':
                     col_name = col_id
                     col_type = 'time'
                 else:
                     col_name = processor.tables[entry['db_id']]['column_names_original'][col_id][1]
                     col_type = processor.tables[entry['db_id']]['column_types'][col_id]
-                print('Clause %s Column %s[%s]: Gold/Match/Pred value: %s/%s/%s' % (clause, col_name, col_type, gold_value, match_value, pred_value))
+                print('Clause %s Column %s[%s]: Gold/Match/Pred value: %s/%s/%s' % (clause, col_name, col_type, sqlvalue.real_value, matched_value, pred_value))
         if flag: instance_correct += 1
         else:
             print('Question[%s]: [%s]' % (entry['question_id'], '|'.join(entry['cased_question_toks'])))

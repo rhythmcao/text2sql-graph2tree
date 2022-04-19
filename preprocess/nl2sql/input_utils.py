@@ -288,7 +288,7 @@ def extract_numbers_in_question(question):
     for span in re.finditer(r'([0-9\.点负%s十百千万亿]+)' % (ZH_NUMBER), question):
         s, e = span.start(), span.end()
         word = question[s: e]
-        if s > 0 and re.search(r'[\-周/e]', question[s]): continue
+        if s > 0 and re.search(r'[\-周/e]', question[s - 1]): continue
         if e < len(question) and re.search(r'[些批部层楼下手共月周日号股线ae]', question[e]): continue
         if is_number(word):
             candidates.append(str(float(word)))

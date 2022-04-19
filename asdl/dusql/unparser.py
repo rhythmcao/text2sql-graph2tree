@@ -2,9 +2,10 @@
 import re
 from asdl.asdl import ASDLGrammar
 from asdl.asdl_ast import AbstractSyntaxTree
+from asdl.transition_system import SelectValueAction
 from preprocess.process_utils import UNIT_OP, UNIT_OP_NAME
 from preprocess.dusql.postprocess import ValueProcessor
-from preprocess.process_utils import State
+from preprocess.process_utils import SQLValue, State
 from functools import wraps
 from utils.constants import DEBUG
 
@@ -177,8 +178,11 @@ class UnParser():
                 limit_str = ' LIMIT 1'
             else:
                 state = State('limit', 'none', '==', 'none', 0)
-                value_id = orderby_ast[self.grammar.get_field_by_text('val_id limit')][0].value
-                limit_str = ' LIMIT ' + self.value_processor.postprocess_value(value_id, value_candidates, db, state, entry)
+                sqlvalue = SQLValue('', state)
+                val_id = int(orderby_ast[self.grammar.get_field_by_text('val_id limit')][0].value)
+                candidate = val_id if val_id < SelectValueAction.size('dusql') else value_candidates[val_id - SelectValueAction.size('dusql')]
+                sqlvalue.add_candidate(candidate)
+                limit_str = ' LIMIT ' + self.value_processor.postprocess_value(sqlvalue, db, entry)
         return orderby_str + ' ' + order + limit_str
 
     def unparse_condition(self, conds_ast: AbstractSyntaxTree, db: dict, value_candidates: list, entry: dict, clause: str, *args, **kargs):
@@ -214,8 +218,11 @@ class UnParser():
             if self.sketch:
                 val_str = "'value'"
             else:
+                sqlvalue = SQLValue('', state)
                 val_id = int(val_ast[self.grammar.get_field_by_text('val_id val_id')][0].value)
-                val_str = self.value_processor.postprocess_value(val_id, value_candidates, db, state, entry)
+                candidate = val_id if val_id < SelectValueAction.size('dusql') else value_candidates[val_id - SelectValueAction.size('dusql')]
+                sqlvalue.add_candidate(candidate)
+                val_str = self.value_processor.postprocess_value(sqlvalue, db, entry)
         else:
             val_field = val_ast[self.grammar.get_field_by_text('sql value_sql')][0]
             val_str = '( ' + self.unparse_sql(val_field.value, db, value_candidates, entry, *args, **kargs) + ' )'

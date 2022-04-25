@@ -7,7 +7,7 @@ read_model_path=''
 read_ts_order_path=''
 read_canonical_action_path=''
 
-translator=mbart50_m2m #'mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b'
+translator=mbart50_m2en #'mbart50_m2m', 'mbart50_m2en', 'm2m_100_418m', 'm2m_100_1.2b'
 plm=electra-base-discriminator #bert-base-multilingual-uncased # infoxlm-base, xlm-align-base, xlm-roberta-base
 encode_method=lgesql # irnet, rgatsql, lgesql
 local_and_nonlocal=$1 # mmc, msde, local, global

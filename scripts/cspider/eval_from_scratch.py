@@ -12,11 +12,11 @@ from model.model_constructor import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--read_model_path', type=str, required=True, help='path to saved model, at least containing model.bin, params.json, order.bin')
-parser.add_argument('--output_file', default='cspider.sql', help='output predicted sql file')
+parser.add_argument('--output_path', default='cspider.sql', help='output predicted sql file')
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
 parser.add_argument('--ts_order', choices=['controller', 'enum'], default='controller', help='input node selection method')
-parser.add_argument('--deviceId', type=int, default=0, help='-1 -> CPU ; GPU index o.w.')
+parser.add_argument('--device', type=int, default=0, help='-1 -> CPU ; GPU index o.w.')
 args = parser.parse_args(sys.argv[1:])
 
 assert not DEBUG
@@ -29,7 +29,7 @@ Example.configuration('cspider', plm=params.plm, encode_method=params.encode_met
 dataset = Example.load_dataset('test', translator=params.translator)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=Example.collate_fn)
 # set torch device
-device = set_torch_device(args.deviceId)
+device = set_torch_device(args.device)
 # model init
 model = Registrable.by_name('text2sql')(params, Example.trans).to(device)
 check_point = torch.load(open(os.path.join(args.read_model_path, 'model.bin'), 'rb'), map_location=device)
@@ -46,9 +46,8 @@ with torch.no_grad():
         all_hyps.extend(hyps)
         all_vals.extend(vals)
 
-output_path = os.path.join(args.read_model_path, args.output_file)
-print('Start writing predicted sqls to file %s' % (output_path))
-with open(output_path, 'w', encoding='utf8') as of:
+print('Start writing predicted sqls to file %s' % (args.output_path))
+with open(args.output_path, 'w', encoding='utf8') as of:
     evaluator = Example.evaluator
     for idx in range(len(dataset)):
         # execution-guided unparsing

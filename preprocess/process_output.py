@@ -27,8 +27,8 @@ def get_output_processor(dataset, table_path=None, db_dir=None):
 def process_dataset_output(processor, dataset, tables, output_path=None, skip_error=True, verbose=False):
     processed_dataset = []
     for idx, entry in enumerate(dataset):
-        # if (idx + 1) % 500 == 0:
-            # print('*************** Processing outputs of the %d-th sample **************' % (idx + 1))
+        if (idx + 1) % 500 == 0:
+            print('*************** Processing outputs of the %d-th sample **************' % (idx + 1))
         try:
             # extract schema subgraph, graph pruning labels, values from (question, sql) pairs, and output ast
             entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)

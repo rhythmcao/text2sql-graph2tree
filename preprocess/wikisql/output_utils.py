@@ -9,7 +9,7 @@ class OutputProcessor(BaseOutputProcessor):
 
     def __init__(self, table_path=None, db_dir=None, **kargs) -> None:
         grammar = ASDLGrammar.from_filepath(DATASETS['wikisql']['grammar'])
-        # self.trans = TransitionSystem.get_class_by_dataset('wikisql')(grammar, table_path, db_dir)
+        self.trans = TransitionSystem.get_class_by_dataset('wikisql')(grammar, table_path, db_dir)
         self.value_extractor = ValueExtractor()
 
     def pipeline(self, entry: dict, db: dict, verbose: bool = False):
@@ -20,8 +20,8 @@ class OutputProcessor(BaseOutputProcessor):
         # add auxiliary labels for value recognition and graph pruning
         entry = self.auxiliary_labels(entry, db)
         # generate golden ast
-        # ast = self.trans.surface_code_to_ast(entry['sql'], entry['values'])
-        # entry['ast'] = ast
+        ast = self.trans.surface_code_to_ast(entry['sql'], entry['values'])
+        entry['ast'] = ast
         return entry
 
     def extract_subgraph(self, entry: dict, db: dict, verbose: bool = False):

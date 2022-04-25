@@ -282,7 +282,7 @@ class Evaluator():
             pred_sqls.append(pred_sql)
             if not flag: continue
             if not checker: return pred_sql
-            if self.surface_checker.validity_check(pred_sql, db) and \
-                DATASETS[self.dataset]['predict_value'] and self.exec_checker.validity_check(pred_sql, db):
+            if self.surface_checker.validity_check(pred_sql, db) and ((not DATASETS[self.dataset]['predict_value']) or \
+                self.exec_checker.validity_check(pred_sql, db)):
                 return pred_sql
         return pred_sqls[0]

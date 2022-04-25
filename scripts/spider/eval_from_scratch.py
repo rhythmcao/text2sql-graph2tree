@@ -32,7 +32,7 @@ parser.add_argument('--output_path', default='predicted_sql.txt', help='output p
 parser.add_argument('--batch_size', default=20, type=int, help='batch size for evaluation')
 parser.add_argument('--beam_size', default=5, type=int, help='beam search size')
 parser.add_argument('--ts_order', default='controller', choices=['enum', 'controller'], help='order method for evaluation')
-parser.add_argument('--deviceId', type=int, default=-1, help='-1 -> CPU ; GPU index o.w.')
+parser.add_argument('--device', type=int, default=-1, help='-1 -> CPU ; GPU index o.w.')
 args = parser.parse_args(sys.argv[1:])
 
 assert TEST and not DEBUG
@@ -43,7 +43,7 @@ Example.configuration('spider', plm=params.plm, encode_method=params.encode_meth
 dataset = Example.load_dataset(dataset=dataset)
 dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, collate_fn=Example.collate_fn)
 
-device = set_torch_device(args.deviceId)
+device = set_torch_device(args.device)
 model = Registrable.by_name('text2sql')(params, Example.trans).to(device)
 check_point = torch.load(open(os.path.join(args.read_model_path, 'model.bin'), 'rb'), map_location=device)['model']
 model.load_state_dict(check_point)

@@ -95,7 +95,7 @@ DATASETS = {
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'wikisql'),
         'database': os.path.join('data', 'wikisql'),
-        'database_testsuite': os.path.join('data', 'wikisql', 'db_content.json'),
+        'database_testsuite': os.path.join('data', 'wikisql'),
         'db_content': False,
         'bridge': False,
         'predict_value': True,

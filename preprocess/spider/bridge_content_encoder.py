@@ -228,10 +228,11 @@ def get_database_matches(
     column_name: str,
     db_path: str,
     match_threshold: float = 0.85,
+    cells = None
 ) -> List[str]:
     picklist = get_column_picklist(
         table_name=table_name, column_name=column_name, db_path=db_path
-    )
+    ) if cells is None else cells
     matches = []
     if picklist and isinstance(picklist[0], str):
         matched_entries = get_matched_entries(

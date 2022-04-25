@@ -54,6 +54,7 @@ class SelectValueAction(GenTokenAction):
         'cspider': Vocab(iterable=['null', 'false', 'true', '0', '1'], default='1'),
         'cspider_raw': Vocab(iterable=['value'], default='value'),
         'nl2sql': Vocab(iterable=['无', '否', '是', '0', '1'], default='1'),
+        'wikisql': Vocab(iterable=['–'], default='–'),
     }
 
     @classmethod
@@ -156,6 +157,8 @@ class TransitionSystem(object):
             from asdl.cspider.sql_transition_system_simple import SQLTransitionSystem
         elif dataset == 'nl2sql':
             from asdl.nl2sql.sql_transition_system import SQLTransitionSystem
+        elif dataset == 'wikisql':
+            from asdl.wikisql.sql_transition_system import SQLTransitionSystem
         else:
             raise ValueError('unknown dataset name %s' % dataset)
         return SQLTransitionSystem

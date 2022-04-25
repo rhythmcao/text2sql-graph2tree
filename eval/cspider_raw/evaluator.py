@@ -14,6 +14,7 @@ class CSpiderRawEvaluator(Evaluator):
 
     def __init__(self, *args, **kargs):
         super(CSpiderRawEvaluator, self).__init__(*args, **kargs)
+        self.dataset = 'cspider_raw'
         self.engine = Engine()
         self.surface_checker = SurfaceChecker()
         self.exec_checker = ExecutionChecker()
@@ -29,9 +30,10 @@ class CSpiderRawEvaluator(Evaluator):
         return schemas
 
 
-    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db_id, etype):
+    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db, etype):
         """ @return: score(float): 0 or 1, only exact set match w/o values available for cspider
         """
+        db_id = db['db_id']
         schema, kmap = self.schemas[db_id], self.kmaps[db_id]
         try:
             p_sql = get_sql(schema, pred_sql)

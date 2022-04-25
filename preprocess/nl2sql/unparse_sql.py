@@ -1,7 +1,6 @@
 #coding=utf8
 import sys, os, json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from preprocess.process_utils import is_number
 
 AGG_MAP = {
     0: lambda s: s,
@@ -19,11 +18,10 @@ COND = ('', ' and ', ' or ')
 
 class UnparseSQLDict():
 
-    def unparse(self, sql: dict, db: dict, add_one: bool = False):
+    def unparse(self, sql: dict, db: dict):
         column_names = db.get('column_names_original', 'column_names')
         select_cols = []
         for agg_id, col_id in zip(sql['agg'], sql['sel']):
-            col_id = col_id + int(add_one)
             sel = AGG_MAP[agg_id](column_names[col_id][1])
             select_cols.append(sel)
         select_str = 'SELECT ' + ' , '.join(select_cols)
@@ -31,7 +29,6 @@ class UnparseSQLDict():
         where_conds = []
         for cond in sql['conds']:
             col_id, cmp_id, val = cond
-            col_id = col_id + int(add_one)
             cond = CMP_MAP[cmp_id].join([column_names[col_id][1], '"' + val + '"'])
             where_conds.append(cond)
         where_str = ' WHERE ' + conj.join(where_conds)
@@ -43,8 +40,7 @@ def reconstruct_dataset(unparser, dataset_path, output_path, tables):
     for ex in dataset:
         db_id = ex['db_id'] if 'db_id' in ex else ex['table_id']
         sql = ex['sql'] if 'sql' in ex else ex
-        add_one = True if 'db_id' not in ex else False
-        s = unparser.unparse(sql, tables[db_id], add_one=add_one)
+        s = unparser.unparse(sql, tables[db_id])
         output_sqls.append((s, db_id))
 
     with open(output_path, 'w') as of:
@@ -62,6 +58,6 @@ if __name__ == '__main__':
 
     tables = load_tables('data/nl2sql/tables.json')
     unparser = UnparseSQLDict()
-    # reconstruct_dataset(unparser, 'data/nl2sql/train.json', 'train_recovered.sql', tables)
-    # reconstruct_dataset(unparser, 'data/nl2sql/dev.json', 'dev_recovered.sql', tables)
-    reconstruct_dataset(unparser, 'data/nl2sql/test_labels.json', 'test_gold.sql', tables)
+    reconstruct_dataset(unparser, 'data/nl2sql/train.json', 'train_recovered.sql', tables)
+    reconstruct_dataset(unparser, 'data/nl2sql/dev.json', 'dev_recovered.sql', tables)
+    # reconstruct_dataset(unparser, 'data/nl2sql/test_labels.json', 'test_gold.sql2', tables)

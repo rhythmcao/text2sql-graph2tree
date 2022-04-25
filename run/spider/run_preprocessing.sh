@@ -2,7 +2,7 @@
 encode_method=lgesql # irnet, rgatsql, lgesql
 mwf=4
 vocab_glove='pretrained_models/glove.42b.300d/vocab_glove.txt'
-vocab='pretrained_models/glove.42b.300d/vocab.txt'
+vocab='pretrained_models/glove.42b.300d/vocab_spider.txt'
 
 echo "Fix some annotation errors in the dataset ..."
 python3 -u preprocess/spider/fix_error.py #> error.log
@@ -21,4 +21,4 @@ python3 -u preprocess/process_output.py --dataset 'spider' --data_split dev --en
 #python3 -u preprocess/process_output.py --dataset 'spider' --data_split 'test' --encode_method $encode_method #--verbose >> test.log
 
 echo "Start to build word vocab for the dataset ..."
-python3 -u preprocess/spider/build_glove_vocab.py --encode_method $encode_method --reference_file $vocab_glove --output_path $vocab --mwf $mwf
+python3 -u preprocess/build_glove_vocab.py --dataset 'spider' --encode_method $encode_method --reference_file $vocab_glove --output_path $vocab --mwf $mwf

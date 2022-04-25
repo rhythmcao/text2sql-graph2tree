@@ -20,7 +20,7 @@ def get_input_processor(**kargs):
     elif dataset == 'nl2sql':
         from preprocess.nl2sql.input_utils import InputProcessor
     elif dataset == 'wikisql':
-        pass
+        from preprocess.wikisql.input_utils import InputProcessor
     else:
         raise ValueError('Not recognized dataset name %s' % (dataset))
     encode_method = kargs.pop('encode_method', 'lgesql')

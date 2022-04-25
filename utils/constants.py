@@ -90,6 +90,17 @@ DATASETS = {
         'predict_value': True,
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('real', '数值')]),
     },
+    'wikisql': {
+        'grammar': os.path.join('asdl', 'wikisql', 'wikisql_grammar.txt'),
+        'relation': RELATIONS[:-1],
+        'data': os.path.join('data', 'wikisql'),
+        'database': os.path.join('data', 'wikisql'),
+        'database_testsuite': os.path.join('data', 'wikisql', 'db_content.json'),
+        'db_content': False,
+        'bridge': False,
+        'predict_value': True,
+        'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'real']]),
+    }
 }
 
 # Index for BIO Labels in value recognition:

@@ -138,6 +138,8 @@ class ValueProcessor():
                 if col_type == 'number' and is_number(normed_value_str):
                     output = int(float(normed_value_str)) if is_int(normed_value_str) else float(normed_value_str)
                 elif col_type == 'number' and parse_number(True): pass
+                elif col_type == 'time' and is_number(normed_value_str): output = normed_value_str
+                elif col_type == 'time' and parse_number(True): pass
                 elif col_type == 'time' and parse_datetime(): pass
                 else: # text values
                     if is_number(normed_value_str): # some text appears like numbers such as phone number

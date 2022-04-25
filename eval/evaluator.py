@@ -2,6 +2,7 @@
 import json, pickle
 import torch
 from functools import partial
+from utils.constants import DATASETS
 
 
 def build_foreign_key_map(entry):
@@ -108,6 +109,9 @@ class Evaluator():
         elif dataset == 'nl2sql':
             from eval.nl2sql.evaluator import NL2SQLEvaluator
             return NL2SQLEvaluator
+        elif dataset == 'wikisql':
+            from eval.wikisql.evaluator import WikiSQLEvaluator
+            return WikiSQLEvaluator
         else:
             raise ValueError(f'[Error]: Unrecognized dataset "{dataset}" for evaluator')
 
@@ -208,7 +212,7 @@ class Evaluator():
                 pred_sql, flag = self.transition_system.ast_to_surface_code(hyp.tree, db, values[idx], entry)
                 pred_sqls.append(pred_sql)
                 if not flag: continue
-                score = self.evaluate_with_adaptive_interface(pred_sql, gold_sql, db['db_id'], etype)
+                score = self.evaluate_with_adaptive_interface(pred_sql, gold_sql, db, etype)
                 if int(score) == 1:
                     scores[hardness][0] += 1
                     scores[hardness][1] += 1.0
@@ -255,9 +259,9 @@ class Evaluator():
 
     def sketch_acc(self, pred_hyps, values, dataset, output_path, etype):
         dbs = [ex.db for ex in dataset]
-        pred_sqls = [self.transition_system.ast_to_surface_code(hyp[0].tree, dbs[idx], values[idx], dataset[idx].ex, sketch=True) for idx, hyp in enumerate(pred_hyps)]
+        pred_sqls = [self.transition_system.ast_to_surface_code(hyp[0].tree, dbs[idx], values[idx], dataset[idx].ex, sketch=True)[0] for idx, hyp in enumerate(pred_hyps)]
         ref_asts = [ex.ast for ex in dataset]
-        ref_sqls = [self.transition_system.ast_to_surface_code(hyp, dbs[idx], values[idx], dataset[idx].ex, sketch=True) for idx, hyp in enumerate(ref_asts)]
+        ref_sqls = [self.transition_system.ast_to_surface_code(hyp, dbs[idx], values[idx], dataset[idx].ex, sketch=True)[0] for idx, hyp in enumerate(ref_asts)]
         results = self.evaluate_with_official_interface(pred_sqls, ref_sqls, dbs, dataset, output_path=None, etype='match')
         return float(results['exact'])
 
@@ -278,6 +282,7 @@ class Evaluator():
             pred_sqls.append(pred_sql)
             if not flag: continue
             if not checker: return pred_sql
-            if self.surface_checker.validity_check(pred_sql, db) and self.exec_checker.validity_check(pred_sql, db):
+            if self.surface_checker.validity_check(pred_sql, db) and \
+                DATASETS[self.dataset]['predict_value'] and self.exec_checker.validity_check(pred_sql, db):
                 return pred_sql
         return pred_sqls[0]

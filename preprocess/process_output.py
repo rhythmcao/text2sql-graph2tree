@@ -16,7 +16,7 @@ def get_output_processor(dataset, table_path=None, db_dir=None):
     elif dataset == 'nl2sql':
         from preprocess.nl2sql.output_utils import OutputProcessor
     elif dataset == 'wikisql':
-        raise NotImplementedError
+        from preprocess.wikisql.output_utils import OutputProcessor
     else:
         raise ValueError('Not recognized dataset name %s' % (dataset))
     table_path = os.path.join(DATASETS[dataset]['data'], 'tables.bin') if table_path is None else table_path
@@ -34,7 +34,7 @@ def process_dataset_output(processor, dataset, tables, output_path=None, skip_er
             entry = processor.pipeline(entry, tables[entry['db_id']], verbose=verbose)
             processed_dataset.append(entry)
         except Exception as e:
-            print('Skip instance: [%s]' % ('|'.join(entry['cased_question_toks'])))
+            print('Skip instance: [%s]' % (' '.join(entry['cased_question_toks'])))
             print('Query: %s' % (entry['query']))
             print('SQL: %s' % (json.dumps(entry['sql'], ensure_ascii=False)))
             # exc_type, exc_value, exc_traceback_obj = sys.exc_info()

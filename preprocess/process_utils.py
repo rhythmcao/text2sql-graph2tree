@@ -12,7 +12,7 @@ UNIT_OP = ('none', '-', '+', "*", '/')
 UNIT_OP_NAME = ('', 'Minus', 'Plus', 'Times', 'Divide')
 AGG_OP = ('none', 'max', 'min', 'count', 'sum', 'avg')
 
-QUOTATION_MARKS = ["'", '"', '`', '‘', '’', '“', '”', '``', "''", "‘‘", "’’"]
+QUOTATION_MARKS = ["'", '"', '`', '‘', '’', '“', '”']
 BOOL_TRUE = ['Y', 'y', 'T', 't', '1', 1, 'yes', 'Yes', 'true', 'True', 'YES', 'TRUE']
 BOOL_FALSE = ['N', 'n', 'F', 'f', '0', 0, 'no', 'No', 'false', 'False', 'NO', 'FALSE']
 BOOL_TRUE_ZH = ['1', 1, '是', '对', '有']
@@ -232,8 +232,8 @@ def extract_raw_question_span(s: str, q: str):
     index_mapping = [idx for idx, c in enumerate(q) if c != ' ']
     try:
         start_id = q_.index(s_)
-        start, end = index_mapping[start_id], index_mapping[start_id + len(s_)]
-        return q[start: end].rstrip(' ')
+        start, end = index_mapping[start_id], index_mapping[start_id + len(s_) - 1]
+        return q[start: end + 1]
     except: return s
 
 

@@ -10,6 +10,7 @@ class DuSQLEvaluator(Evaluator):
 
     def __init__(self, *args, **kargs):
         super(DuSQLEvaluator, self).__init__(*args, **kargs)
+        self.dataset = 'dusql'
         self.engine = Engine()
         self.surface_checker = SurfaceChecker(self.schemas)
         self.exec_checker = ExecutionChecker()
@@ -23,9 +24,10 @@ class DuSQLEvaluator(Evaluator):
         return schemas
 
 
-    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db_id, etype):
+    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db, etype):
         """ @return: score(float): 0 or 1, etype score
         """
+        db_id = db['db_id']
         schema, kmap = self.schemas[db_id], self.kmaps[db_id]
         try:
             pred_sql = pred_sql.replace('==', '=')

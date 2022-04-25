@@ -1,4 +1,5 @@
 #coding=utf8
+import json
 import os, pickle, random
 import numpy as np
 from asdl.asdl import ASDLGrammar
@@ -58,7 +59,7 @@ class Example():
             cls.word2vec = Word2vecUtils()
             cls.tokenizer = lambda x: x
             cls.word_vocab = Vocab(padding=True, unk=True, boundary=True, default=UNK,
-                filepath='./pretrained_models/glove.42b.300d/vocab.txt',
+                filepath=f'./pretrained_models/glove.42b.300d/vocab_{cls.dataset}.txt',
                 specials=list(DATASETS[cls.dataset]['schema_types'].values()))
         else:
             cls.tokenizer = AutoTokenizer.from_pretrained(os.path.join('./pretrained_models', plm))
@@ -71,14 +72,11 @@ class Example():
     def load_dataset(cls, choice='train', dataset=None, translator='none'):
         if dataset is None:
             assert choice in ['train', 'dev', 'test']
-            # fp = os.path.join(cls.data_dir, choice + '.' + cls.encode_method + '.bin') if not DEBUG else \
-                # os.path.join(cls.data_dir, 'train.' + cls.encode_method + '.bin')
+            choice = 'train' if DEBUG else choice
             if 'cspider' in Example.dataset and translator != 'none':
-                fp = os.path.join(cls.data_dir, choice + '_' + translator + '.lgesql.bin') if not DEBUG else \
-                    os.path.join(cls.data_dir, 'train' + '_' + translator + '.lgesql.bin')
-            else:
-                fp = os.path.join(cls.data_dir, choice + '.lgesql.bin') if not DEBUG else \
-                    os.path.join(cls.data_dir, 'train.lgesql.bin')
+                fp = os.path.join(cls.data_dir, choice + '_' + translator + '.lgesql.bin')
+            else: fp = os.path.join(cls.data_dir, choice + '.lgesql.bin')
+            # fp = os.path.join(cls.data_dir, choice + '.' + cls.encode_method + '.bin')
             dataset = pickle.load(open(fp, 'rb'))
         else: choice = 'test'
 
@@ -145,12 +143,11 @@ class Example():
             self.table_mask_plm = [1] * len(self.table_id)
 
             # self.column: if bridge, [ ['text', '*'] , ['text', 'student', 'name', '=', 'alice'], ['number', 'age'], ... ]
-            # prepend column types, some columns may have cell values
-            add_one = Example.dataset == 'dusql'
+            # prepend column types, some columns may have cell values if BRIDGE
             column = [[DATASETS[Example.dataset]['schema_types'][db['column_types'][idx]]] + c + ex['cells'][idx]
                 if DATASETS[Example.dataset]['bridge'] else [DATASETS[Example.dataset]['schema_types'][db['column_types'][idx]]] + c
                 for idx, c in enumerate(db['column_toks'])]
-            self.column = [[DATASETS[Example.dataset]['schema_types']['time'], '当前', '时间']] + column if add_one else column
+            self.column = [[DATASETS[Example.dataset]['schema_types']['time'], '当前', '时间']] + column if Example.dataset == 'dusql' else column
             self.column_id, self.column_mask_plm, self.column_subword_len = [], [], []
             self.column_word_len = []
             for s in self.column:
@@ -182,20 +179,21 @@ class Example():
             self.ast = ex['ast']
 
 
-def get_position_ids(ex, shuffle=True, add_one=False):
-    # add_one means add special column TIME_NOW before column *
+def get_position_ids(ex, shuffle=True, dataset='spider'):
     # cluster columns with their corresponding table and randomly shuffle tables and columns
-    # [CLS] q1 q2 ... [SEP] {optional TIME_NOW} * t1 c1 c2 c3 t2 c4 c5 ... [SEP]
+    # [CLS] q1 q2 ... [SEP] {optional TIME_NOW} {optional *} t1 c1 c2 c3 t2 c4 c5 ... [SEP]
+    time_now = (dataset == 'dusql')
     db, table_word_len, column_word_len = ex.db, ex.table_word_len, ex.column_word_len
-    table_num, column_num = len(db['table_names']), len(db['column_names']) + int(add_one)
+    table_num, column_num = len(db['table_names']), len(db['column_names']) + int(time_now)
     question_position_id = list(range(len(ex.question_id)))
     table_position_id, column_position_id = [None] * table_num, [None] * column_num
 
     # start after the question, special columns such as TIME_NOW and * first
     start = len(question_position_id)
-    column_position_id[0] = list(range(start, start + column_word_len[0]))
-    start += column_word_len[0]
-    if add_one:
+    if dataset != 'wikisql': # wikisql does not contain wildcard column *
+        column_position_id[0] = list(range(start, start + column_word_len[0]))
+        start += column_word_len[0]
+    if time_now:
         column_position_id[1] = list(range(start, start + column_word_len[1]))
         start += column_word_len[1]
 
@@ -209,7 +207,7 @@ def get_position_ids(ex, shuffle=True, add_one=False):
         if shuffle:
             random.shuffle(col_idxs)
         for col_id in col_idxs:
-            col_id = col_id + int(add_one) # maybe shifted due to add_one
+            col_id = col_id + int(time_now) # maybe shifted due to TIME_NOW
             column_position_id[col_id] = list(range(start, start + column_word_len[col_id]))
             start += column_word_len[col_id]
     position_id = question_position_id + list(chain.from_iterable(table_position_id)) + \

@@ -14,6 +14,7 @@ class SpiderEvaluator(Evaluator):
 
     def __init__(self, *args, plug_value=False, keep_distinct=False, progress_bar_for_each_datapoint=False, **kargs):
         super(SpiderEvaluator, self).__init__(*args, **kargs)
+        self.dataset = 'spider'
         self.engine = Engine()
         self.surface_checker = SurfaceChecker()
         self.exec_checker = ExecutionChecker(self.db_dir)
@@ -31,9 +32,10 @@ class SpiderEvaluator(Evaluator):
         return schemas
 
 
-    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db_id, etype):
+    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db, etype):
         """ @return: score(float): 0 or 1, etype score
         """
+        db_id = db['db_id']
         if etype == 'all': etype = 'exec'
         if etype == 'exec':
             db = os.path.join(self.db_dir, db_id, db_id + ".sqlite")

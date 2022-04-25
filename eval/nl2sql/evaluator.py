@@ -10,6 +10,7 @@ class NL2SQLEvaluator(Evaluator):
 
     def __init__(self, *args, **kargs):
         super(NL2SQLEvaluator, self).__init__(*args, **kargs)
+        self.dataset = 'nl2sql'
         self.engine = Engine()
         self.surface_checker = SurfaceChecker(self.schemas)
         self.exec_checker = ExecutionChecker()
@@ -20,9 +21,10 @@ class NL2SQLEvaluator(Evaluator):
         return tables
 
 
-    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db_id, etype):
+    def evaluate_with_adaptive_interface(self, pred_sql, gold_sql, db, etype):
         """ @return: score(float): 0 or 1, etype score
         """
+        db_id = db['db_id']
         cols = [i[1] for i in self.schemas[db_id]["column_names"]]
         try:
             gold_sql = gold_sql.replace('==', '=')

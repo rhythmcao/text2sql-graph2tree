@@ -115,7 +115,7 @@ class ExecutionChecker():
             if 'sql' in sql: sql = sql['sql']
             pred = Query.from_dict(sql, ordered=False)
             pred = engine.execute_query(db['db_id'], pred, lower=True)
-            return True
+            if len(pred) > 0: return True
         except Exception as e: pass
         return False
 

@@ -195,7 +195,7 @@ def map_en_string_to_date(s: str):
         s = re.sub(r'\s*(-|:)\s*', lambda match: match.group(1), s).strip() # remove whitespace near - and :
         if re.search(r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}$', s) or \
             re.search(r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}$', s) or re.search(r'^\d{1,2}[\-/][a-zA-Z]{3,4}[\-/]\d{4}$', s) or \
-            re.search(r'^\d{1,2}:\d{1,2}:\d{1,2}$', s): return s
+            re.search(r'^\d{1,2}:\d{1,2}:\d{1,2}$', s) or re.search(r'^\d+$', s): return s
         datetime_obj = datetime_parser.parse(s, fuzzy=True)
         today = datetime.datetime.today()
         if datetime_obj.year == today.year: return None
@@ -226,7 +226,7 @@ def extract_raw_question_span(s: str, q: str):
     instead of the tokenized version which may be wrong due to tokenization error (e.g. `bob @ example . org` ).
     Notice that s and raw_q should be cased version, and if ignore whitespaces, s should occur in raw_q
     """
-    if s in q: return s
+    if ' ' not in s or s in q: return s
     s_ = s.replace(' ', '')
     q_ = q.replace(' ', '')
     index_mapping = [idx for idx, c in enumerate(q) if c != ' ']

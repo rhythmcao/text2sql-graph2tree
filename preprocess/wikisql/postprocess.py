@@ -30,7 +30,7 @@ class ValueProcessor():
         if type(vc) == int: # reserved vocab
             reserved_vocab = SelectValueAction.vocab('wikisql').id2word
             return str(reserved_vocab[vc])
-        
+
         assert isinstance(vc, ValueCandidate)
         value_str = vc.matched_cased_value
         if col_type == 'text':
@@ -38,7 +38,7 @@ class ValueProcessor():
             if value_str.endswith('´s'): value_str = value_str[:-2]
             if len(value_str) < 4 and value_str.endswith('-'):
                 value_str = value_str.rstrip('-')
-            if not re.search(r'^[a-z ]$', value_str, flags=re.I): # exist other symbols not letter or white space
+            if not re.search(r'^[a-z ]+$', value_str, flags=re.I): # exist other symbols not letter or white space
                 value_str = extract_raw_question_span(value_str, entry['question'])
             return str(value_str)
         else: # real

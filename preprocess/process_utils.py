@@ -192,7 +192,7 @@ def map_en_string_to_date(s: str):
     """ During postprocessing, try to map english word string into datetime format `2021-01-01`
     """
     try:
-        s = re.sub(r'\s*(-|:)\s*', lambda match: match.group(1), s).strip() # remove whitespace near - and :
+        s = re.sub(r'\s*(-|:|/)\s*', lambda match: match.group(1), s).strip() # remove whitespace near - and :
         if re.search(r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}$', s) or \
             re.search(r'^\d{1,4}[-/]\d{1,2}[-/]\d{1,4}$', s) or re.search(r'^\d{1,2}[\-/][a-zA-Z]{3,4}[\-/]\d{4}$', s) or \
             re.search(r'^\d{1,2}:\d{1,2}:\d{1,2}$', s) or re.search(r'^\d+$', s): return s
@@ -226,9 +226,8 @@ def extract_raw_question_span(s: str, q: str):
     instead of the tokenized version which may be wrong due to tokenization error (e.g. `bob @ example . org` ).
     Notice that s and raw_q should be cased version, and if ignore whitespaces, s should occur in raw_q
     """
-    if ' ' not in s or s in q: return s
-    s_ = s.replace(' ', '')
-    q_ = q.replace(' ', '')
+    if re.search(r'^[a-z0-9 ]+$', s, flags=re.I) or ' ' not in s or s in q: return s
+    s_, q_ = s.replace(' ', ''), q.replace(' ', '')
     index_mapping = [idx for idx, c in enumerate(q) if c != ' ']
     try:
         start_id = q_.index(s_)

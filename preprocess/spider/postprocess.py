@@ -107,7 +107,7 @@ class ValueProcessor():
         else:
             value_str, cased_value_str = vc.matched_value.strip('"\'').strip(), vc.matched_cased_value.strip('"\'').strip()
 
-            def parse_number(month_week=False):
+            def try_parse_number(month_week=False):
                 num = map_en_string_to_number(value_str, month_week)
                 if num is not None:
                     nonlocal output
@@ -115,18 +115,13 @@ class ValueProcessor():
                     return True
                 return False
 
-            if clause == 'limit': # value should be integers
+            if clause in ['limit', 'having']: # value should be numbers
                 if is_number(value_str):
-                    output = int(float(value_str))
-                elif parse_number(False): pass
-                else: output = 1
-            elif clause == 'having': # value should be numbers
-                if is_number(value_str):
-                    output = int(float(value_str)) if is_int(value_str) else float(value_str)
-                elif parse_number(False): pass
+                    output = int(float(value_str)) if clause == 'limit' or is_int(value_str) else float(value_str)
+                elif try_parse_number(False): pass
                 else: output = 1
             else: # WHERE clause, value can be numbers, datetime or text
-                def parse_datetime():
+                def try_parse_datetime():
                     date = map_en_string_to_date(value_str)
                     if date is not None:
                         nonlocal output
@@ -137,15 +132,15 @@ class ValueProcessor():
                 normed_value_str = number_string_normalization(value_str)
                 if col_type == 'number' and is_number(normed_value_str):
                     output = int(float(normed_value_str)) if is_int(normed_value_str) else float(normed_value_str)
-                elif col_type == 'number' and parse_number(True): pass
+                elif col_type == 'number' and try_parse_number(True): pass
+                elif like_op: output = extract_raw_question_span(cased_value_str, raw_question)
                 elif col_type == 'time' and is_number(normed_value_str): output = normed_value_str
-                elif col_type == 'time' and parse_number(True): pass
-                elif col_type == 'time' and parse_datetime(): pass
+                elif col_type == 'time' and try_parse_datetime(): pass
                 else: # text values
                     if is_number(normed_value_str): # some text appears like numbers such as phone number
                         output = extract_raw_question_span(cased_value_str, raw_question)
-                    else:
-                        output = try_fuzzy_match(cased_value_str, ([] if like_op else cell_values), raw_question, ABBREV_SET, 85)
+                    else: output = try_fuzzy_match(cased_value_str, cell_values, raw_question, ABBREV_SET, 85)
+
         # add quote and wild symbol
         if like_op: output = '"%' + str(output).strip() + '%"'
         elif type(output) != str: output = str(output)

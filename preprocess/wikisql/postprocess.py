@@ -38,8 +38,7 @@ class ValueProcessor():
             if value_str.endswith('´s'): value_str = value_str[:-2]
             if len(value_str) < 4 and value_str.endswith('-'):
                 value_str = value_str.rstrip('-')
-            if not re.search(r'^[a-z ]+$', value_str, flags=re.I): # exist other symbols not letter or white space
-                value_str = extract_raw_question_span(value_str, entry['question'])
+            value_str = extract_raw_question_span(value_str, entry['question'])
             return str(value_str)
         else: # real
             value_str = value_str.replace(' ', '').rstrip('?')

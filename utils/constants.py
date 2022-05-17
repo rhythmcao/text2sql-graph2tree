@@ -34,7 +34,8 @@ RELATIONS = ['question-question-dist' + str(i) if i != 0 else 'question-question
 
 DATASETS = {
     'spider': {
-        'grammar': os.path.join('asdl', 'spider', 'spider_grammar.txt'), # os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt')
+        'grammar': os.path.join('asdl', 'spider', 'spider_grammar.txt'),
+        # 'grammar': os.path.join('asdl', 'cspider_raw', 'cspider_raw_grammar_simple.txt'),
         'relation': RELATIONS[:-1],
         'data': os.path.join('data', 'spider'),
         'database': os.path.join('data', 'spider', 'database'),
@@ -51,7 +52,7 @@ DATASETS = {
         'database': os.path.join('data', 'dusql', 'db_content.json'),
         'database_testsuite': os.path.join('data', 'dusql', 'db_content.json'),
         'db_content': True,
-        'bridge': True,
+        'bridge': False,
         'predict_value': True,
         'schema_types': OrderedDict([('table', '表格'), ('text', '文本'), ('time', '时间'), ('number', '数值'), ('binary', '真假值'), ('others', '其它类型')]),
     },
@@ -96,8 +97,8 @@ DATASETS = {
         'data': os.path.join('data', 'wikisql'),
         'database': os.path.join('data', 'wikisql'),
         'database_testsuite': os.path.join('data', 'wikisql'),
-        'db_content': False,
-        'bridge': False,
+        'db_content': True,
+        'bridge': True,
         'predict_value': True,
         'schema_types': OrderedDict([(t, t) for t in ['table', 'text', 'real']]),
     }

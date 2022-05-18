@@ -76,7 +76,7 @@ class InputProcessor():
         super(InputProcessor, self).__init__()
         self.db_dir = db_dir
         self.db_content, self.bridge = db_content, bridge
-        self.nlp_en = stanza.Pipeline('en', processors='tokenize,pos')#, use_gpu=False)
+        self.nlp_en = stanza.Pipeline('en', processors='tokenize,pos,lemma')#, use_gpu=False)
         tools = LAC(mode='seg')
         self.nlp_zh = lambda s: tools.run(s)
         self.stopwords_en = set(stopwords.words("english")) - {'no'}

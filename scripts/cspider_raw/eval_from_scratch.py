@@ -20,11 +20,11 @@ def preprocess_database_and_dataset(db_dir='database/', table_path='data/tables.
     tables = amend_boolean_types(tables, db_dir)
     dataset = json.load(open(dataset_path, 'r'))
     if translator == 'none':
-        processor = get_input_processor('cspider_raw', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=True)
+        processor = get_input_processor(dataset='cspider_raw', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=True)
     else:
         translator = SentenceTranslator(model_name=translator)
         dataset = translator.translate(dataset, batch_size=20)
-        processor = get_input_processor('spider', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=True)
+        processor = get_input_processor(dataset='spider', encode_method=encode_method, db_dir=db_dir, db_content=True, bridge=True)
     output_tables = process_tables(processor, tables)
     output_dataset = process_dataset_input(processor, dataset, output_tables)
     return output_dataset, output_tables
